@@ -845,4 +845,38 @@ struct tc_pie_xstats {
 	__u32 maxq;             /* maximum queue size */
 	__u32 ecn_mark;         /* packets marked with ecn*/
 };
+
+/* CAKE */
+enum {
+	TCA_CAKE_UNSPEC,
+	TCA_CAKE_BASE_RATE,
+	TCA_CAKE_DIFFSERV_MODE,
+	TCA_CAKE_ATM,
+	TCA_CAKE_FLOW_MODE,
+	__TCA_CAKE_MAX
+};
+#define TCA_CAKE_MAX	(__TCA_CAKE_MAX - 1)
+
+struct tc_cake_xstats {
+	__u16 type;  /* constant magic 0xCAFE */
+	__u16 class_cnt;
+	struct {
+		__u32 rate;
+		__u32 target_us;
+		__u32 packets;
+		__u32 interval_us;
+		__u64 bytes;
+		__u32 dropped;
+		__u32 ecn_marked;
+		__u32 way_indirect_hits;
+		__u32 way_misses;
+		__u32 way_collisions;
+		__u32 backlog_bytes;
+		__u32 peak_delay; /* delay to fat flows */
+		__u32 avge_delay;
+		__u32 base_delay; /* delay to sparse flows */
+		__u32 dummy2;
+	} cls[8];
+};
+
 #endif

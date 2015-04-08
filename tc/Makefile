@@ -59,8 +59,17 @@ TCMODULES += em_meta.o
 TCMODULES += q_mqprio.o
 TCMODULES += q_codel.o
 TCMODULES += q_fq_codel.o
+TCMODULES += q_nfq_codel.o
+TCMODULES += q_efq_codel.o
+TCMODULES += q_sfq_codel.o
+TCMODULES += q_pfq_codel.o
+TCMODULES += q_ns2_codel.o
+TCMODULES += q_ns4_codel.o
 TCMODULES += q_fq.o
 TCMODULES += q_pie.o
+TCMODULES += q_cake.o
+TCMODULES += q_cake2.o
+TCMODULES += q_cake3.o
 TCMODULES += q_hhf.o
 
 ifeq ($(TC_CONFIG_IPSET), y)
