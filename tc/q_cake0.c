@@ -50,10 +50,10 @@
 
 static void explain(void)
 {
-	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited ]\n"
-	                "                [ besteffort | precedence | diffserv ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows ]\n"
-	                "                [ atm ]\n");
+	fprintf(stderr, "Usage: ... cake0 [ bandwidth RATE | unlimited ]\n"
+	                "                 [ besteffort | precedence | diffserv ]\n"
+	                "                 [ flowblind | srchost | dsthost | hosts | flows ]\n"
+	                "                 [ atm ]\n");
 }
 
 static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
@@ -293,8 +293,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	return 0;
 }
 
-struct qdisc_util cake_qdisc_util = {
-	.id		= "cake",
+struct qdisc_util cake0_qdisc_util = {
+	.id		= "cake0",
 	.parse_qopt	= cake_parse_opt,
 	.print_qopt	= cake_print_opt,
 	.print_xstats	= cake_print_xstats,
