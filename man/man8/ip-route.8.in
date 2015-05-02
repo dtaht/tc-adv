@@ -81,11 +81,16 @@ replace " } "
 .ti -8
 .IR NH " := [ "
 .B  via
-.IR ADDRESS " ] [ "
+[
+.IR FAMILY " ] " ADDRESS " ] [ "
 .B  dev
 .IR STRING " ] [ "
 .B  weight
 .IR NUMBER " ] " NHFLAGS
+
+.ti -8
+.IR FAMILY " := [ "
+.BR inet " | " inet6 " | " ipx " | " dnet " | " mpls " | " bridge " | " link " ]"
 
 .ti -8
 .IR OPTIONS " := " FLAGS " [ "
@@ -93,6 +98,11 @@ replace " } "
 .IR NUMBER " ] [ "
 .B  advmss
 .IR NUMBER " ] [ "
+.B  as
+[
+.B to
+]
+.IR ADDRESS " ]"
 .B  rtt
 .IR TIME " ] [ "
 .B  rttvar
@@ -119,6 +129,8 @@ replace " } "
 .IR BOOL " ] [ "
 .B  congctl
 .IR NAME " ]"
+.B  pref
+.IR PREF " ]"
 
 .ti -8
 .IR TYPE " := [ "
@@ -147,6 +159,10 @@ throw " | " unreachable " | " prohibit " | " blackhole " | " nat " ]"
 .ti -8
 .IR FEATURES " := [ "
 .BR ecn " | ]"
+
+.ti -8
+.IR PREF " := [ "
+.BR low " | " medium " | " high " ]"
 
 
 .SH DESCRIPTION
@@ -333,9 +349,10 @@ table by default.
 the output device name.
 
 .TP
-.BI via " ADDRESS"
-the address of the nexthop router. Actually, the sense of this field
-depends on the route type. For normal
+.BI via " [ FAMILY ] ADDRESS"
+the address of the nexthop router, in the address family FAMILY.
+Actually, the sense of this field depends on the route type.  For
+normal
 .B unicast
 routes it is either the true next hop router or, if it is a direct
 route installed in BSD compatibility mode, it can be a local address
@@ -472,7 +489,7 @@ is a complex value with its own syntax similar to the top level
 argument lists:
 
 .in +8
-.BI via " ADDRESS"
+.BI via " [ FAMILY ] ADDRESS"
 - is the nexthop router.
 .sp
 
@@ -551,6 +568,28 @@ to assign (or not to assign) protocol tags.
 .B onlink
 pretend that the nexthop is directly attached to this link,
 even if it does not match any interface prefix.
+
+.TP
+.BI pref " PREF"
+the IPv6 route preference.
+.I PREF
+is a string specifying the route preference as defined in RFC4191 for Router
+Discovery messages. Namely:
+
+.in +8
+.B low
+- the route has a lowest priority
+.sp
+
+.B medium
+- the route has a default priority
+.sp
+
+.B high
+- the route has a highest priority
+.sp
+
+.in -8
 .RE
 
 .TP
@@ -669,7 +708,7 @@ only list routes of this type.
 only list routes going via this device.
 
 .TP
-.BI via " PREFIX"
+.BI via " [ FAMILY ] PREFIX"
 only list routes going via the nexthop routers selected by
 .IR PREFIX "."
 
