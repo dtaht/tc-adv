@@ -66,6 +66,7 @@ TCMODULES += q_pfq_codel.o
 TCMODULES += q_ns2_codel.o
 TCMODULES += q_ns4_codel.o
 TCMODULES += q_fq.o
+TCMODULES += q_fq_pie.o
 TCMODULES += q_pie.o
 TCMODULES += q_cake.o
 TCMODULES += q_cake0.o
