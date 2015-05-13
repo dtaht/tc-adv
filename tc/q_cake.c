@@ -50,10 +50,11 @@
 
 static void explain(void)
 {
-	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited ]\n"
-	                "                [ besteffort | precedence | diffserv8 | diffserv4 ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows ]\n"
-	                "                [ atm ]\n");
+	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
+	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
+	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
+	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+	                "    (* marks defaults)\n");
 }
 
 static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
@@ -62,6 +63,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int unlimited = 0;
 	unsigned bandwidth = 0;
 	unsigned diffserv = 0;
+	int overhead = -99999;
 	int flowmode = -1;
 	int atm = -1;
 	struct rtattr *tail;
@@ -105,6 +107,21 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "noatm") == 0) {
 			atm = 0;
 
+		} else if (strcmp(*argv, "raw") == 0) {
+			atm = 0;
+			overhead = 0;
+		} else if (strcmp(*argv, "conservative") == 0) {
+			atm = 1;
+			overhead = 48;
+		} else if (strcmp(*argv, "overhead") == 0) {
+			const char* p = NULL;
+			NEXT_ARG();
+			overhead = strtol(*argv, &p, 10);
+			if(!p || *p || !*argv || overhead < -64 || overhead > 256) {
+				fprintf(stderr, "Illegal \"overhead\"\n");
+				return -1;
+			}
+
 		} else if (strcmp(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -126,6 +143,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_ATM, &atm, sizeof(atm));
 	if (flowmode != -1)
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
+	if (overhead > -999)
+		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
@@ -136,7 +155,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned bandwidth = 0;
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
-	int atm = -1;
+	int overhead = 0;
+	int atm = 0;
 	SPRINT_BUF(b1);
 
 	if (opt == NULL)
@@ -200,9 +220,22 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_ATM] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ATM]) >= sizeof(__u32)) {
 		atm = rta_getattr_u32(tb[TCA_CAKE_ATM]);
-		if (atm)
-			fprintf(f, "atm ");
 	}
+	if (tb[TCA_CAKE_OVERHEAD] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
+		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
+	}
+
+	if(atm)
+		fprintf(f, "atm ");
+	else if(overhead)
+		fprintf(f, "noatm ");
+
+	if(overhead || atm)
+		fprintf(f, "overhead %d ", overhead);
+
+	if(!atm && !overhead)
+		fprintf(f, "raw ");
 
 	return 0;
 }
