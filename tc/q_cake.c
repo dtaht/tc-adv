@@ -114,7 +114,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = 1;
 			overhead = 48;
 		} else if (strcmp(*argv, "overhead") == 0) {
-			const char* p = NULL;
+			char* p = NULL;
 			NEXT_ARG();
 			overhead = strtol(*argv, &p, 10);
 			if(!p || *p || !*argv || overhead < -64 || overhead > 256) {
