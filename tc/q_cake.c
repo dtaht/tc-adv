@@ -111,8 +111,66 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = 0;
 			overhead = 0;
 		} else if (strcmp(*argv, "conservative") == 0) {
+			/*
+			 * Deliberately over-estimate overhead:
+			 * one whole ATM cell plus ATM framing.
+			 * A safe choice if the actual overhead is unknown.
+			 */
 			atm = 1;
 			overhead = 48;
+
+		/* Various ADSL framing schemes */
+		} else if (strcmp(*argv, "ipoa-vcmux") == 0) {
+			atm = 1;
+			overhead = 8;
+		} else if (strcmp(*argv, "ipoa-llcsnap") == 0) {
+			atm = 1;
+			overhead = 16;
+		} else if (strcmp(*argv, "bridged-vcmux") == 0) {
+			atm = 1;
+			overhead = 24;
+		} else if (strcmp(*argv, "bridged-llcsnap") == 0) {
+			atm = 1;
+			overhead = 32;
+		} else if (strcmp(*argv, "pppoa-vcmux") == 0) {
+			atm = 1;
+			overhead = 10;
+		} else if (strcmp(*argv, "pppoa-llc") == 0) {
+			atm = 1;
+			overhead = 14;
+		} else if (strcmp(*argv, "pppoe-vcmux") == 0) {
+			atm = 1;
+			overhead = 32;
+		} else if (strcmp(*argv, "pppoe-llcsnap") == 0) {
+			atm = 1;
+			overhead = 40;
+
+		/* Typical VDSL2 framing schemes */
+		/* NB: PTM includes HDLC's 0x7D/7E expansion, adds extra 1/128 */
+		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
+			atm = 0;
+			overhead = 27;
+		} else if (strcmp(*argv, "bridged-ptm") == 0) {
+			atm = 0;
+			overhead = 19;
+
+		} else if (strcmp(*argv, "via-ethernet") == 0) {
+			/*
+			 * The above overheads are relative to an IP packet,
+			 * but if the physical interface is Ethernet, Linux
+			 * includes Ethernet framing overhead already.
+			 */
+			overhead -= 14;
+
+		/* Additional Ethernet-related overheads used by some ISPs */
+		} else if (strcmp(*argv, "ether-fcs") == 0) {
+			/* Frame Check Sequence */
+			/* we ignore the minimum frame size, because IP packets usually meet it */
+			overhead += 4;
+		} else if (strcmp(*argv, "ether-vlan") == 0) {
+			/* 802.1q VLAN tag - may be repeated */
+			overhead += 4;
+
 		} else if (strcmp(*argv, "overhead") == 0) {
 			char* p = NULL;
 			NEXT_ARG();
