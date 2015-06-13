@@ -75,10 +75,14 @@ ip-link \- network device configuration
 .BR ip6gretap " |"
 .BR vti " |"
 .BR nlmon " |"
-.BR ipvlan " ]"
+.BR ipvlan " |"
+.BR lowpan " ]"
 
 .ti -8
-.BI "ip link delete " DEVICE
+.BR "ip link delete " {
+.IR DEVICE " | "
+.BI "group " GROUP
+}
 .BI type " TYPE"
 .RI "[ " ARGS " ]"
 
@@ -240,6 +244,9 @@ Link types:
 .sp
 .BR ipvlan
 - Interface for L3 (IPv6/IPv4) based VLANs
+.sp
+.BR lowpan
+- Interface for 6LoWPAN (IPv6) over IEEE 802.15.4 / Bluetooth
 .in -8
 
 .TP
@@ -588,15 +595,19 @@ the following additional arguments are supported:
 - specifies the mode (datagram or connected) to use.
 
 .SS ip link delete - delete virtual link
-.I DEVICE
-specifies the virtual  device to act operate on.
-.I TYPE
-specifies the type of the device.
-
 
 .TP
 .BI dev " DEVICE "
-specifies the physical device to act operate on.
+specifies the virtual device to act operate on.
+
+.TP
+.BI group " GROUP "
+specifies the group of virtual links to delete. Group 0 is not allowed to be
+deleted since it is the default group.
+
+.TP
+.BI type " TYPE "
+specifies the type of the device.
 
 .SS ip link set - change device attributes
 
@@ -701,12 +712,6 @@ tool can be used. But it allows to change network namespace only for physical de
 .TP
 .BI alias " NAME"
 give the device a symbolic name for easy reference.
-
-.TP
-.BI group " GROUP"
-specify the group the device belongs to.
-The available groups are listed in file
-.BR "@SYSCONFDIR@/group" .
 
 .TP
 .BI vf " NUM"
@@ -856,7 +861,7 @@ specifies which help of link type to dislpay.
 .SS
 .I GROUP
 may be a number or a string from the file
-.B /etc/iproute2/group
+.B @SYSCONFDIR@/group
 which can be manually filled.
 
 .SH "EXAMPLES"
@@ -908,6 +913,12 @@ encap-dport 5555 encap-csum encap-remcsum
 Creates an IPIP that is encapsulated with Generic UDP Encapsulation,
 and the outer UDP checksum and remote checksum offload are enabled.
 
+.RE
+.PP
+ip link add link wpan0 lowpan0 type lowpan
+.RS 4
+Creates a 6LoWPAN interface named lowpan0 on the underlying
+IEEE 802.15.4 device wpan0.
 .RE
 
 .SH SEE ALSO

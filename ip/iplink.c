@@ -53,9 +53,9 @@ void iplink_usage(void)
 		fprintf(stderr, "                   [ numtxqueues QUEUE_COUNT ]\n");
 		fprintf(stderr, "                   [ numrxqueues QUEUE_COUNT ]\n");
 		fprintf(stderr, "                   type TYPE [ ARGS ]\n");
-		fprintf(stderr, "       ip link delete DEV type TYPE [ ARGS ]\n");
+		fprintf(stderr, "       ip link delete { DEVICE | dev DEVICE | group DEVGROUP } type TYPE [ ARGS ]\n");
 		fprintf(stderr, "\n");
-		fprintf(stderr, "       ip link set { dev DEVICE | group DEVGROUP } [ { up | down } ]\n");
+		fprintf(stderr, "       ip link set { DEVICE | dev DEVICE | group DEVGROUP } [ { up | down } ]\n");
 	} else
 		fprintf(stderr, "Usage: ip link set DEVICE [ { up | down } ]\n");
 
@@ -80,6 +80,7 @@ void iplink_usage(void)
 	fprintf(stderr, "				   [ rate TXRATE ] ] \n");
 
 	fprintf(stderr, "				   [ spoofchk { on | off} ] ] \n");
+	fprintf(stderr, "				   [ query_rss { on | off} ] ] \n");
 	fprintf(stderr, "				   [ state { auto | enable | disable} ] ]\n");
 	fprintf(stderr, "			  [ master DEVICE ]\n");
 	fprintf(stderr, "			  [ nomaster ]\n");
@@ -330,6 +331,18 @@ static int iplink_parse_vf(int vf, int *argcp, char ***argvp,
 				invarg("Invalid \"spoofchk\" value\n", *argv);
 			ivs.vf = vf;
 			addattr_l(&req->n, sizeof(*req), IFLA_VF_SPOOFCHK, &ivs, sizeof(ivs));
+
+		} else if (matches(*argv, "query_rss") == 0) {
+			struct ifla_vf_rss_query_en ivs;
+			NEXT_ARG();
+			if (matches(*argv, "on") == 0)
+				ivs.setting = 1;
+			else if (matches(*argv, "off") == 0)
+				ivs.setting = 0;
+			else
+				invarg("Invalid \"query_rss\" value\n", *argv);
+			ivs.vf = vf;
+			addattr_l(&req->n, sizeof(*req), IFLA_VF_RSS_QUERY_EN, &ivs, sizeof(ivs));
 
 		} else if (matches(*argv, "state") == 0) {
 			struct ifla_vf_link_state ivl;
@@ -661,7 +674,7 @@ static int iplink_modify(int cmd, unsigned int flags, int argc, char **argv)
 
 			req.i.ifi_index = 0;
 			addattr32(&req.n, sizeof(req), IFLA_GROUP, group);
-			if (rtnl_talk(&rth, &req.n, 0, 0, NULL) < 0)
+			if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
 				exit(2);
 			return 0;
 		}
@@ -760,7 +773,7 @@ static int iplink_modify(int cmd, unsigned int flags, int argc, char **argv)
 		return -1;
 	}
 
-	if (rtnl_talk(&rth, &req.n, 0, 0, NULL) < 0)
+	if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
 		exit(2);
 
 	return 0;
@@ -770,7 +783,10 @@ int iplink_get(unsigned int flags, char *name, __u32 filt_mask)
 {
 	int len;
 	struct iplink_req req;
-	char answer[16384];
+	struct {
+		struct nlmsghdr n;
+		char buf[16384];
+	} answer;
 
 	memset(&req, 0, sizeof(req));
 
@@ -790,10 +806,10 @@ int iplink_get(unsigned int flags, char *name, __u32 filt_mask)
 	}
 	addattr32(&req.n, sizeof(req), IFLA_EXT_MASK, filt_mask);
 
-	if (rtnl_talk(&rth, &req.n, 0, 0, (struct nlmsghdr *)answer) < 0)
+	if (rtnl_talk(&rth, &req.n, &answer.n, sizeof(answer)) < 0)
 		return -2;
 
-	print_linkinfo(NULL, (struct nlmsghdr *)answer, stdout);
+	print_linkinfo(NULL, &answer.n, stdout);
 
 	return 0;
 }

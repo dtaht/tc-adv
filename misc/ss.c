@@ -233,14 +233,12 @@ static struct filter current_filter;
 static void filter_db_set(struct filter *f, int db)
 {
 	f->states   |= default_dbs[db].states;
-	f->families |= default_dbs[db].families;
 	f->dbs	    |= 1 << db;
 	do_default   = 0;
 }
 
 static void filter_af_set(struct filter *f, int af)
 {
-	f->dbs		   |= default_afs[af].dbs;
 	f->states	   |= default_afs[af].states;
 	f->families	   |= 1 << af;
 	do_default	    = 0;
@@ -266,21 +264,31 @@ static void filter_default_dbs(struct filter *f)
 	filter_db_set(f, NETLINK_DB);
 }
 
-static void filter_merge(struct filter *af, struct filter *dbf, int states)
+static void filter_states_set(struct filter *f, int states)
 {
-	if (af->families)
-		af->families = (af->families | dbf->families) & af->families;
-	else
-		af->families = dbf->families;
-
-	if (dbf->dbs)
-		af->dbs = (af->dbs | dbf->dbs) & dbf->dbs;
-
-	if (dbf->states)
-		af->states = (af->states | dbf->states) & dbf->states;
-
 	if (states)
-		af->states = (af->states | states) & states;
+		f->states = (f->states | states) & states;
+}
+
+static void filter_merge_defaults(struct filter *f)
+{
+	int db;
+	int af;
+
+	for (db = 0; db < MAX_DB; db++) {
+		if (!(f->dbs & (1 << db)))
+			continue;
+
+		if (!(default_dbs[db].families & f->families))
+			f->families |= default_dbs[db].families;
+	}
+	for (af = 0; af < AF_MAX; af++) {
+		if (!(f->families & (1 << af)))
+			continue;
+
+		if (!(default_afs[af].dbs & f->dbs))
+			f->dbs |= default_afs[af].dbs;
+	}
 }
 
 static FILE *generic_proc_open(const char *env, const char *name)
@@ -1534,7 +1542,7 @@ out:
 	if (fam != AF_UNSPEC) {
 		f->families = 0;
 		filter_af_set(f, fam);
-		filter_merge(f, f, 0);
+		filter_states_set(f, 0);
 	}
 
 	res = malloc(sizeof(*res));
@@ -1676,7 +1684,7 @@ static void tcp_stats_print(struct tcpstat *s)
 
 	if (s->mss)
 		printf(" mss:%d", s->mss);
-	if (s->cwnd && s->cwnd != 2)
+	if (s->cwnd)
 		printf(" cwnd:%d", s->cwnd);
 	if (s->ssthresh)
 		printf(" ssthresh:%d", s->ssthresh);
@@ -1684,11 +1692,11 @@ static void tcp_stats_print(struct tcpstat *s)
 	if (s->dctcp && s->dctcp->enabled) {
 		struct dctcpstat *dctcp = s->dctcp;
 
-		printf("dctcp:(ce_state:%u,alpha:%u,ab_ecn:%u,ab_tot:%u)",
+		printf(" dctcp:(ce_state:%u,alpha:%u,ab_ecn:%u,ab_tot:%u)",
 				dctcp->ce_state, dctcp->alpha, dctcp->ab_ecn,
 				dctcp->ab_tot);
 	} else if (s->dctcp) {
-		printf("dctcp:fallback_mode");
+		printf(" dctcp:fallback_mode");
 	}
 
 	if (s->send_bps)
@@ -1885,8 +1893,8 @@ static void tcp_show_info(const struct nlmsghdr *nlh, struct inet_diag_msg *r,
 		/* workaround for older kernels with less fields */
 		if (len < sizeof(*info)) {
 			info = alloca(sizeof(*info));
-			memset(info, 0, sizeof(*info));
 			memcpy(info, RTA_DATA(tb[INET_DIAG_INFO]), len);
+			memset((char *)info + len, 0, sizeof(*info) - len);
 		} else
 			info = RTA_DATA(tb[INET_DIAG_INFO]);
 
@@ -2826,13 +2834,27 @@ static int packet_stats_print(struct sockstat *s, const struct filter *f)
 	return 0;
 }
 
+static void packet_show_ring(struct packet_diag_ring *ring)
+{
+	printf("blk_size:%d", ring->pdr_block_size);
+	printf(",blk_nr:%d", ring->pdr_block_nr);
+	printf(",frm_size:%d", ring->pdr_frame_size);
+	printf(",frm_nr:%d", ring->pdr_frame_nr);
+	printf(",tmo:%d", ring->pdr_retire_tmo);
+	printf(",features:0x%x", ring->pdr_features);
+}
+
 static int packet_show_sock(const struct sockaddr_nl *addr,
 		struct nlmsghdr *nlh, void *arg)
 {
 	const struct filter *f = arg;
 	struct packet_diag_msg *r = NLMSG_DATA(nlh);
+	struct packet_diag_info *pinfo = NULL;
+	struct packet_diag_ring *ring_rx = NULL, *ring_tx = NULL;
 	struct rtattr *tb[PACKET_DIAG_MAX+1];
 	struct sockstat stat = {};
+	uint32_t fanout = 0;
+	bool has_fanout = false;
 
 	parse_rtattr(tb, PACKET_DIAG_MAX, (struct rtattr*)(r+1),
 		     nlh->nlmsg_len - NLMSG_LENGTH(sizeof(*r)));
@@ -2853,15 +2875,81 @@ static int packet_show_sock(const struct sockaddr_nl *addr,
 	}
 
 	if (tb[PACKET_DIAG_INFO]) {
-		struct packet_diag_info *pinfo = RTA_DATA(tb[PACKET_DIAG_INFO]);
+		pinfo = RTA_DATA(tb[PACKET_DIAG_INFO]);
 		stat.lport = stat.iface = pinfo->pdi_index;
 	}
 
 	if (tb[PACKET_DIAG_UID])
 		stat.uid = *(__u32 *)RTA_DATA(tb[PACKET_DIAG_UID]);
 
+	if (tb[PACKET_DIAG_RX_RING])
+		ring_rx = RTA_DATA(tb[PACKET_DIAG_RX_RING]);
+
+	if (tb[PACKET_DIAG_TX_RING])
+		ring_tx = RTA_DATA(tb[PACKET_DIAG_TX_RING]);
+
+	if (tb[PACKET_DIAG_FANOUT]) {
+		has_fanout = true;
+		fanout = *(uint32_t *)RTA_DATA(tb[PACKET_DIAG_FANOUT]);
+	}
+
 	if (packet_stats_print(&stat, f))
 		return 0;
+
+	if (show_details) {
+		if (pinfo) {
+			printf("\n\tver:%d", pinfo->pdi_version);
+			printf(" cpy_thresh:%d", pinfo->pdi_copy_thresh);
+			printf(" flags( ");
+			if (pinfo->pdi_flags & PDI_RUNNING)
+				printf("running");
+			if (pinfo->pdi_flags & PDI_AUXDATA)
+				printf(" auxdata");
+			if (pinfo->pdi_flags & PDI_ORIGDEV)
+				printf(" origdev");
+			if (pinfo->pdi_flags & PDI_VNETHDR)
+				printf(" vnethdr");
+			if (pinfo->pdi_flags & PDI_LOSS)
+				printf(" loss");
+			if (!pinfo->pdi_flags)
+				printf("0");
+			printf(" )");
+		}
+		if (ring_rx) {
+			printf("\n\tring_rx(");
+			packet_show_ring(ring_rx);
+			printf(")");
+		}
+		if (ring_tx) {
+			printf("\n\tring_tx(");
+			packet_show_ring(ring_tx);
+			printf(")");
+		}
+		if (has_fanout) {
+			uint16_t type = (fanout >> 16) & 0xffff;
+
+			printf("\n\tfanout(");
+			printf("id:%d,", fanout & 0xffff);
+			printf("type:");
+
+			if (type == 0)
+				printf("hash");
+			else if (type == 1)
+				printf("lb");
+			else if (type == 2)
+				printf("cpu");
+			else if (type == 3)
+				printf("roll");
+			else if (type == 4)
+				printf("random");
+			else if (type == 5)
+				printf("qm");
+			else
+				printf("0x%x", type);
+
+			printf(")");
+		}
+	}
 
 	if (show_bpf && tb[PACKET_DIAG_FILTER]) {
 		struct sock_filter *fil =
@@ -2886,7 +2974,8 @@ static int packet_show_netlink(struct filter *f)
 	DIAG_REQUEST(req, struct packet_diag_req r);
 
 	req.r.sdiag_family = AF_PACKET;
-	req.r.pdiag_show = PACKET_SHOW_INFO | PACKET_SHOW_MEMINFO | PACKET_SHOW_FILTER;
+	req.r.pdiag_show = PACKET_SHOW_INFO | PACKET_SHOW_MEMINFO |
+		PACKET_SHOW_FILTER | PACKET_SHOW_RING_CFG | PACKET_SHOW_FANOUT;
 
 	return handle_netlink_request(f, &req.nlh, sizeof(req), packet_show_sock);
 }
@@ -3416,7 +3505,6 @@ int main(int argc, char *argv[])
 	const char *dump_tcpdiag = NULL;
 	FILE *filter_fp = NULL;
 	int ch;
-	struct filter dbs_filter = {};
 	int state_filter = 0;
 
 	while ((ch = getopt_long(argc, argv, "dhaletuwxnro460spbf:miA:D:F:vVzZN:",
@@ -3450,16 +3538,16 @@ int main(int argc, char *argv[])
 			show_bpf++;
 			break;
 		case 'd':
-			filter_db_set(&dbs_filter, DCCP_DB);
+			filter_db_set(&current_filter, DCCP_DB);
 			break;
 		case 't':
-			filter_db_set(&dbs_filter, TCP_DB);
+			filter_db_set(&current_filter, TCP_DB);
 			break;
 		case 'u':
-			filter_db_set(&dbs_filter, UDP_DB);
+			filter_db_set(&current_filter, UDP_DB);
 			break;
 		case 'w':
-			filter_db_set(&dbs_filter, RAW_DB);
+			filter_db_set(&current_filter, RAW_DB);
 			break;
 		case 'x':
 			filter_af_set(&current_filter, AF_UNIX);
@@ -3511,44 +3599,44 @@ int main(int argc, char *argv[])
 				if ((p1 = strchr(p, ',')) != NULL)
 					*p1 = 0;
 				if (strcmp(p, "all") == 0) {
-					filter_default_dbs(&dbs_filter);
+					filter_default_dbs(&current_filter);
 				} else if (strcmp(p, "inet") == 0) {
-					filter_db_set(&dbs_filter, UDP_DB);
-					filter_db_set(&dbs_filter, DCCP_DB);
-					filter_db_set(&dbs_filter, TCP_DB);
-					filter_db_set(&dbs_filter, RAW_DB);
+					filter_db_set(&current_filter, UDP_DB);
+					filter_db_set(&current_filter, DCCP_DB);
+					filter_db_set(&current_filter, TCP_DB);
+					filter_db_set(&current_filter, RAW_DB);
 				} else if (strcmp(p, "udp") == 0) {
-					filter_db_set(&dbs_filter, UDP_DB);
+					filter_db_set(&current_filter, UDP_DB);
 				} else if (strcmp(p, "dccp") == 0) {
-					filter_db_set(&dbs_filter, DCCP_DB);
+					filter_db_set(&current_filter, DCCP_DB);
 				} else if (strcmp(p, "tcp") == 0) {
-					filter_db_set(&dbs_filter, TCP_DB);
+					filter_db_set(&current_filter, TCP_DB);
 				} else if (strcmp(p, "raw") == 0) {
-					filter_db_set(&dbs_filter, RAW_DB);
+					filter_db_set(&current_filter, RAW_DB);
 				} else if (strcmp(p, "unix") == 0) {
-					filter_db_set(&dbs_filter, UNIX_ST_DB);
-					filter_db_set(&dbs_filter, UNIX_DG_DB);
-					filter_db_set(&dbs_filter, UNIX_SQ_DB);
+					filter_db_set(&current_filter, UNIX_ST_DB);
+					filter_db_set(&current_filter, UNIX_DG_DB);
+					filter_db_set(&current_filter, UNIX_SQ_DB);
 				} else if (strcasecmp(p, "unix_stream") == 0 ||
 					   strcmp(p, "u_str") == 0) {
-					filter_db_set(&dbs_filter, UNIX_ST_DB);
+					filter_db_set(&current_filter, UNIX_ST_DB);
 				} else if (strcasecmp(p, "unix_dgram") == 0 ||
 					   strcmp(p, "u_dgr") == 0) {
-					filter_db_set(&dbs_filter, UNIX_DG_DB);
+					filter_db_set(&current_filter, UNIX_DG_DB);
 				} else if (strcasecmp(p, "unix_seqpacket") == 0 ||
 					   strcmp(p, "u_seq") == 0) {
-					filter_db_set(&dbs_filter, UNIX_SQ_DB);
+					filter_db_set(&current_filter, UNIX_SQ_DB);
 				} else if (strcmp(p, "packet") == 0) {
-					filter_db_set(&dbs_filter, PACKET_R_DB);
-					filter_db_set(&dbs_filter, PACKET_DG_DB);
+					filter_db_set(&current_filter, PACKET_R_DB);
+					filter_db_set(&current_filter, PACKET_DG_DB);
 				} else if (strcmp(p, "packet_raw") == 0 ||
 					   strcmp(p, "p_raw") == 0) {
-					filter_db_set(&dbs_filter, PACKET_R_DB);
+					filter_db_set(&current_filter, PACKET_R_DB);
 				} else if (strcmp(p, "packet_dgram") == 0 ||
 					   strcmp(p, "p_dgr") == 0) {
-					filter_db_set(&dbs_filter, PACKET_DG_DB);
+					filter_db_set(&current_filter, PACKET_DG_DB);
 				} else if (strcmp(p, "netlink") == 0) {
-					filter_db_set(&dbs_filter, NETLINK_DB);
+					filter_db_set(&current_filter, NETLINK_DB);
 				} else {
 					fprintf(stderr, "ss: \"%s\" is illegal socket table id\n", p);
 					usage();
@@ -3641,10 +3729,10 @@ int main(int argc, char *argv[])
 	if (do_default) {
 		state_filter = state_filter ? state_filter : SS_CONN;
 		filter_default_dbs(&current_filter);
-		filter_merge(&current_filter, &current_filter, state_filter);
-	} else {
-		filter_merge(&current_filter, &dbs_filter, state_filter);
 	}
+
+	filter_states_set(&current_filter, state_filter);
+	filter_merge_defaults(&current_filter);
 
 	if (resolve_services && resolve_hosts &&
 	    (current_filter.dbs&(UNIX_DBM|(1<<TCP_DB)|(1<<UDP_DB)|(1<<DCCP_DB))))
