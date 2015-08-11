@@ -402,6 +402,11 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12llu", stc->cls[i].bytes);
 		fprintf(f, "\n");
 
+		fprintf(f, "  flows ");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].active_flows);
+		fprintf(f, "\n");
+
 		fprintf(f, "  drops ");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].dropped);
