@@ -130,7 +130,7 @@ ok:
 
 int print_tc_classid(char *buf, int len, __u32 h)
 {
-	char handle[40] = {};
+	SPRINT_BUF(handle);
 
 	if (h == TC_H_ROOT)
 		sprintf(handle, "root");
