@@ -2949,7 +2949,7 @@ static int netlink_show_one(struct filter *f,
 				unsigned long long sk, unsigned long long cb)
 {
 	struct sockstat st;
-	SPRINT_BUF(prot_buf) = {};
+	SPRINT_BUF(prot_buf);
 	const char *prot_name;
 	char procname[64] = {};
 
