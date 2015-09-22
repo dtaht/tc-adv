@@ -135,13 +135,13 @@ int print_tc_classid(char *buf, int len, __u32 h)
 	if (h == TC_H_ROOT)
 		sprintf(handle, "root");
 	else if (h == TC_H_UNSPEC)
-		snprintf(handle, len, "none");
+		sprintf(handle, "none");
 	else if (TC_H_MAJ(h) == 0)
-		snprintf(handle, len, ":%x", TC_H_MIN(h));
+		snprintf(handle, SPRINT_BSIZE, ":%x", TC_H_MIN(h));
 	else if (TC_H_MIN(h) == 0)
-		snprintf(handle, len, "%x:", TC_H_MAJ(h) >> 16);
+		snprintf(handle, SPRINT_BSIZE, "%x:", TC_H_MAJ(h) >> 16);
 	else
-		snprintf(handle, len, "%x:%x", TC_H_MAJ(h) >> 16, TC_H_MIN(h));
+		snprintf(handle, SPRINT_BSIZE, "%x:%x", TC_H_MAJ(h) >> 16, TC_H_MIN(h));
 
 	if (use_names) {
 		char clname[IDNAME_MAX] = {};
