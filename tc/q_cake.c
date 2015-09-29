@@ -51,7 +51,7 @@
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
-	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
+	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "    (* marks defaults)\n");
@@ -86,6 +86,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = 2;
 		} else if (strcmp(*argv, "diffserv8") == 0) {
 			diffserv = 3;
+		} else if (strcmp(*argv, "squash") == 0) {
+			diffserv = 5;
 		} else if (strcmp(*argv, "diffserv4") == 0) {
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
@@ -245,6 +247,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		case 4:
 			fprintf(f, "diffserv4 ");
+			break;
+		case 5:
+			fprintf(f, "squash ");
 			break;
 		default:
 			fprintf(f, "(?diffserv?) ");
