@@ -130,19 +130,18 @@ ok:
 
 int print_tc_classid(char *buf, int blen, __u32 h)
 {
-	SPRINT_BUF(handle) = {};
-	int hlen = SPRINT_BSIZE - 1;
+	SPRINT_BUF(handle);
 
 	if (h == TC_H_ROOT)
 		sprintf(handle, "root");
 	else if (h == TC_H_UNSPEC)
-		snprintf(handle, hlen, "none");
+		sprintf(handle, "none");
 	else if (TC_H_MAJ(h) == 0)
-		snprintf(handle, hlen, ":%x", TC_H_MIN(h));
+		snprintf(handle, SPRINT_BSIZE, ":%x", TC_H_MIN(h));
 	else if (TC_H_MIN(h) == 0)
-		snprintf(handle, hlen, "%x:", TC_H_MAJ(h) >> 16);
+		snprintf(handle, SPRINT_BSIZE, "%x:", TC_H_MAJ(h) >> 16);
 	else
-		snprintf(handle, hlen, "%x:%x", TC_H_MAJ(h) >> 16, TC_H_MIN(h));
+		snprintf(handle, SPRINT_BSIZE, "%x:%x", TC_H_MAJ(h) >> 16, TC_H_MIN(h));
 
 	if (use_names) {
 		char clname[IDNAME_MAX] = {};
