@@ -165,6 +165,17 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead -= 14;
 
 		/* Additional Ethernet-related overheads used by some ISPs */
+		} else if (strcmp(*argv, "ether-phy") == 0) {
+			/* ethernet pre-amble & interframe gap 20 bytes
+			 * Linux will have already accounted for MACs & frame type 14 bytes
+			 * you probably want to add an FCS as well*/
+			overhead = 20;
+		} else if (strcmp(*argv, "ether-all") == 0) {
+			/* ethernet pre-amble & interframe gap & FCS
+			 * Linux will have already accounted for MACs & frame type 14 bytes
+			 * you may need to add vlan tag*/
+			overhead = 24;
+
 		} else if (strcmp(*argv, "ether-fcs") == 0) {
 			/* Frame Check Sequence */
 			/* we ignore the minimum frame size, because IP packets usually meet it */
