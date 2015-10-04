@@ -420,6 +420,17 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "  flows ");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%6u+%5u", stc->cls[i].sparse_flows, stc->cls[i].bulk_flows);
+		fprintf(f, "\n");
+
+		fprintf(f, "lastlen ");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].last_skblen);
+		fprintf(f, "\n");
+
+		fprintf(f, "max len ");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].max_skblen);
+		fprintf(f, "\n");
 	} else {
 		return -1;
 	}
