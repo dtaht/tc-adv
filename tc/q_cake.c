@@ -360,7 +360,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		fprintf(f, "        ");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "   Class %u  ", i);
+			fprintf(f, "     Bin %u  ", i);
 		fprintf(f, "\n");
 
 		fprintf(f, "  rate  ");
@@ -378,17 +378,17 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12s", sprint_time(stc->cls[i].interval_us, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Pk delay");
+		fprintf(f, "Pk-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].peak_delay, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Av delay");
+		fprintf(f, "Av-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].avge_delay, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Sp delay");
+		fprintf(f, "Sp-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].base_delay, b1));
 		fprintf(f, "\n");
@@ -398,17 +398,17 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].packets);
 		fprintf(f, "\n");
 
-		fprintf(f, "way inds");
+		fprintf(f, "way-inds");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_indirect_hits);
 		fprintf(f, "\n");
 
-		fprintf(f, "way miss");
+		fprintf(f, "way-miss");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_misses);
 		fprintf(f, "\n");
 
-		fprintf(f, "way cols");
+		fprintf(f, "way-cols");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_collisions);
 		fprintf(f, "\n");
@@ -428,17 +428,22 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].ecn_marked);
 		fprintf(f, "\n");
 
-		fprintf(f, "  flows ");
+		fprintf(f, "Sp-flows");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "%6u+%5u", stc->cls[i].sparse_flows, stc->cls[i].bulk_flows);
+			fprintf(f, "%12u", stc->cls[i].sparse_flows);
 		fprintf(f, "\n");
 
-		fprintf(f, "lastlen ");
+		fprintf(f, "Blkflows");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].bulk_flows);
+		fprintf(f, "\n");
+
+		fprintf(f, "last-len");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].last_skblen);
 		fprintf(f, "\n");
 
-		fprintf(f, "max len ");
+		fprintf(f, "max-len ");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].max_skblen);
 		fprintf(f, "\n");
