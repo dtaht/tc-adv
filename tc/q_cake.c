@@ -360,7 +360,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		fprintf(f, "        ");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "   Class %u  ", i);
+			fprintf(f, "     Bin %u  ", i);
 		fprintf(f, "\n");
 
 		fprintf(f, "  rate  ");
