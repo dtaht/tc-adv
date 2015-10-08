@@ -51,6 +51,7 @@
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
+	                "                [ rtt TIME ]\n"
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
@@ -62,6 +63,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 {
 	int unlimited = 0;
 	unsigned bandwidth = 0;
+	unsigned interval = 0;
 	unsigned diffserv = 0;
 	int overhead = -99999;
 	int flowmode = -1;
@@ -79,7 +81,13 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "unlimited") == 0) {
 			bandwidth = 0;
 			unlimited = 1;
-
+		} else if (strcmp(*argv, "rtt") == 0) {
+			NEXT_ARG();
+			if (get_time(&interval, *argv)) {
+				fprintf(stderr, "Illegal \"interval\"\n");
+				return -1;
+			}
+			interval /= 1000; /* mS */
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
 		} else if (strcmp(*argv, "precedence") == 0) {
@@ -216,9 +224,12 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
 	if (overhead > -999)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
+	if (interval)
+		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
+
 
 static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
@@ -226,6 +237,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned bandwidth = 0;
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
+	unsigned interval = 0;
 	int overhead = 0;
 	int atm = 0;
 	SPRINT_BUF(b1);
@@ -299,16 +311,23 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
 		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
 	}
+	if (tb[TCA_CAKE_RTT] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
+		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
+	}
 
-	if(atm)
+	if (interval)
+		fprintf(f, "rtt %dms ", interval);
+
+	if (atm)
 		fprintf(f, "atm ");
-	else if(overhead)
+	else if (overhead)
 		fprintf(f, "noatm ");
 
-	if(overhead || atm)
+	if (overhead || atm)
 		fprintf(f, "overhead %d ", overhead);
 
-	if(!atm && !overhead)
+	if (!atm && !overhead)
 		fprintf(f, "raw ");
 
 	return 0;
