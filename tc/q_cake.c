@@ -414,7 +414,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		fprintf(f, "  flows ");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "%6u+%5u", stc->cls[i].sparse_flows, stc->cls[i].bulk_flows);
+			fprintf(f, " %4u + %4u", stc->cls[i].sparse_flows, stc->cls[i].bulk_flows);
 	} else {
 		return -1;
 	}
