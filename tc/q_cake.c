@@ -51,7 +51,7 @@
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
-	                "                [ rtt TIME ]\n"
+	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
@@ -81,24 +81,42 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "unlimited") == 0) {
 			bandwidth = 0;
 			unlimited = 1;
+
 		} else if (strcmp(*argv, "rtt") == 0) {
 			NEXT_ARG();
 			if (get_time(&interval, *argv)) {
-				fprintf(stderr, "Illegal \"interval\"\n");
+				fprintf(stderr, "Illegal \"rtt\"\n");
 				return -1;
 			}
+		} else if (strcmp(*argv, "datacentre") == 0) {
+			interval = 100;
+		} else if (strcmp(*argv, "lan") == 0) {
+			interval = 1000;
+		} else if (strcmp(*argv, "metro") == 0) {
+			interval = 10000;
+		} else if (strcmp(*argv, "regional") == 0) {
+			interval = 30000;
+		} else if (strcmp(*argv, "internet") == 0) {
+			interval = 100000;
+		} else if (strcmp(*argv, "oceanic") == 0) {
+			interval = 300000;
+		} else if (strcmp(*argv, "satellite") == 0) {
+			interval = 1000000;
+		} else if (strcmp(*argv, "interplanetary") == 0) {
+			interval = 3000000000;
+
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
 		} else if (strcmp(*argv, "precedence") == 0) {
 			diffserv = 2;
 		} else if (strcmp(*argv, "diffserv8") == 0) {
 			diffserv = 3;
-		} else if (strcmp(*argv, "squash") == 0) {
-			diffserv = 5;
 		} else if (strcmp(*argv, "diffserv4") == 0) {
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
 			diffserv = 4;
+		} else if (strcmp(*argv, "squash") == 0) {
+			diffserv = 5;
 
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = 0;
@@ -452,7 +470,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].sparse_flows);
 		fprintf(f, "\n");
 
-		fprintf(f, "Blkflows");
+		fprintf(f, "Bk-flows");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].bulk_flows);
 		fprintf(f, "\n");
