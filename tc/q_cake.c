@@ -87,7 +87,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				fprintf(stderr, "Illegal \"interval\"\n");
 				return -1;
 			}
-			interval /= 1000; /* mS */
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
 		} else if (strcmp(*argv, "precedence") == 0) {
@@ -241,6 +240,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int overhead = 0;
 	int atm = 0;
 	SPRINT_BUF(b1);
+	SPRINT_BUF(b2);
 
 	if (opt == NULL)
 		return 0;
@@ -317,7 +317,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	}
 
 	if (interval)
-		fprintf(f, "rtt %dms ", interval);
+		fprintf(f, "rtt %s ", sprint_time(interval, b2));
 
 	if (atm)
 		fprintf(f, "atm ");
