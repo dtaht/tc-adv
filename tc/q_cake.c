@@ -382,8 +382,9 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	if (RTA_PAYLOAD(xstats) < sizeof(st->type))
 		return -1;
 
-	st  = RTA_DATA(xstats);
-	stc = RTA_DATA(xstats);
+	st   = RTA_DATA(xstats);
+	stc  = RTA_DATA(xstats);
+	stnc = RTA_DATA(xstats);
 
 	if (st->type == TCA_FQ_CODEL_XSTATS_QDISC && RTA_PAYLOAD(xstats) >= sizeof(*st)) {
 		fprintf(f, "  maxpacket %u drop_overlimit %u new_flow_count %u ecn_mark %u",
