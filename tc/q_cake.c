@@ -372,7 +372,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 {
 	/* fq_codel stats format borrowed */
 	struct tc_fq_codel_xstats *st;
-	struct tc_cake_xstats     *stc;
+	struct tc_cake_old_xstats *stc;
+	struct tc_cake_xstats     *stnc;
 	SPRINT_BUF(b1);
 
 	if (xstats == NULL)
@@ -499,6 +500,101 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "max-len ");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].max_skblen);
+		fprintf(f, "\n");
+	} else if (stnc->version >= 1 && stnc->version < 0xFF
+				&& stnc->max_tins == TC_CAKE_MAX_TINS
+				&& RTA_PAYLOAD(xstats) >= sizeof(*stc))
+	{
+		int i;
+
+		fprintf(f, "        ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "     Tin %u  ", i);
+		fprintf(f, "\n");
+
+		fprintf(f, "  thresh");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_rate(stnc->rate[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "  target");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->target_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "interval");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->interval_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Pk-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->peak_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Av-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->avge_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Sp-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->base_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "  pkts  ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->sent[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "  bytes ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12llu", stnc->sent[i].bytes);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-inds");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_indirect_hits[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-miss");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_misses[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-cols");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_collisions[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "  drops ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->dropped[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "  marks ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->ecn_marked[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "Sp-flows");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->sparse_flows[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "Bk-flows");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->bulk_flows[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "last-len");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->last_skblen[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "max-len ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->max_skblen[i]);
 		fprintf(f, "\n");
 	} else {
 		return -1;
