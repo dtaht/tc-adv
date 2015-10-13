@@ -64,6 +64,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int unlimited = 0;
 	unsigned bandwidth = 0;
 	unsigned interval = 0;
+	unsigned target = 0;
 	unsigned diffserv = 0;
 	int overhead = -99999;
 	int flowmode = -1;
@@ -88,22 +89,35 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				fprintf(stderr, "Illegal \"rtt\"\n");
 				return -1;
 			}
+			target = interval / 20;
+			if(target > 5000)
+				target = 5000;
+			if(!target)
+				target = 1;
 		} else if (strcmp(*argv, "datacentre") == 0) {
 			interval = 100;
+			target   =   5;
 		} else if (strcmp(*argv, "lan") == 0) {
 			interval = 1000;
+			target   =   50;
 		} else if (strcmp(*argv, "metro") == 0) {
 			interval = 10000;
+			target   =   500;
 		} else if (strcmp(*argv, "regional") == 0) {
 			interval = 30000;
+			target    = 1500;
 		} else if (strcmp(*argv, "internet") == 0) {
 			interval = 100000;
+			target   =   5000;
 		} else if (strcmp(*argv, "oceanic") == 0) {
 			interval = 300000;
+			target   =   5000;
 		} else if (strcmp(*argv, "satellite") == 0) {
 			interval = 1000000;
+			target   =    5000;
 		} else if (strcmp(*argv, "interplanetary") == 0) {
-			interval = 3000000000;
+			interval = 3600000000;
+			target   =       5000;
 
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
@@ -243,6 +257,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
+	if (interval)
+		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
