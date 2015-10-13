@@ -116,7 +116,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			interval = 1000000;
 			target   =    5000;
 		} else if (strcmp(*argv, "interplanetary") == 0) {
-			interval = 3600000000;
+			interval = 3600000000U;
 			target   =       5000;
 
 		} else if (strcmp(*argv, "besteffort") == 0) {
@@ -514,7 +514,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		fprintf(f, "  thresh");
 		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "%12s", sprint_rate(stnc->rate[i], b1));
+			fprintf(f, "%12s", sprint_rate(stnc->threshold_rate[i], b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "  target");
