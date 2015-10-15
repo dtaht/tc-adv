@@ -205,7 +205,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 {
 	/* fq_codel stats format borrowed */
 	struct tc_fq_codel_xstats *st;
-	struct tc_cake_xstats     *stc;
+	struct tc_cake_old_xstats     *stc;
 	SPRINT_BUF(b1);
 
 	if (xstats == NULL)
