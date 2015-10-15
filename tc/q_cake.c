@@ -493,15 +493,6 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].bulk_flows);
 		fprintf(f, "\n");
 
-		fprintf(f, "last-len");
-		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "%12u", stc->cls[i].last_skblen);
-		fprintf(f, "\n");
-
-		fprintf(f, "max-len ");
-		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "%12u", stc->cls[i].max_skblen);
-		fprintf(f, "\n");
 	} else if (stnc->version >= 1 && stnc->version < 0xFF
 				&& stnc->max_tins == TC_CAKE_MAX_TINS
 				&& RTA_PAYLOAD(xstats) >= sizeof(*stc))
