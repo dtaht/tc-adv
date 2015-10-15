@@ -51,7 +51,8 @@
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
-	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
+	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
+	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 	                "    (* marks defaults)\n");
@@ -62,6 +63,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 {
 	int unlimited = 0;
 	unsigned bandwidth = 0;
+	unsigned interval = 0;
+	unsigned target = 0;
 	unsigned diffserv = 0;
 	int overhead = -99999;
 	int flowmode = -1;
@@ -80,6 +83,42 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			bandwidth = 0;
 			unlimited = 1;
 
+		} else if (strcmp(*argv, "rtt") == 0) {
+			NEXT_ARG();
+			if (get_time(&interval, *argv)) {
+				fprintf(stderr, "Illegal \"rtt\"\n");
+				return -1;
+			}
+			target = interval / 20;
+			if(target > 5000)
+				target = 5000;
+			if(!target)
+				target = 1;
+		} else if (strcmp(*argv, "datacentre") == 0) {
+			interval = 100;
+			target   =   5;
+		} else if (strcmp(*argv, "lan") == 0) {
+			interval = 1000;
+			target   =   50;
+		} else if (strcmp(*argv, "metro") == 0) {
+			interval = 10000;
+			target   =   500;
+		} else if (strcmp(*argv, "regional") == 0) {
+			interval = 30000;
+			target    = 1500;
+		} else if (strcmp(*argv, "internet") == 0) {
+			interval = 100000;
+			target   =   5000;
+		} else if (strcmp(*argv, "oceanic") == 0) {
+			interval = 300000;
+			target   =   5000;
+		} else if (strcmp(*argv, "satellite") == 0) {
+			interval = 1000000;
+			target   =    5000;
+		} else if (strcmp(*argv, "interplanetary") == 0) {
+			interval = 3600000000U;
+			target   =       5000;
+
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
 		} else if (strcmp(*argv, "precedence") == 0) {
@@ -90,6 +129,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
 			diffserv = 4;
+		} else if (strcmp(*argv, "squash") == 0) {
+			diffserv = 5;
 
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = 0;
@@ -163,6 +204,17 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead -= 14;
 
 		/* Additional Ethernet-related overheads used by some ISPs */
+		} else if (strcmp(*argv, "ether-phy") == 0) {
+			/* ethernet pre-amble & interframe gap 20 bytes
+			 * Linux will have already accounted for MACs & frame type 14 bytes
+			 * you probably want to add an FCS as well*/
+			overhead = 20;
+		} else if (strcmp(*argv, "ether-all") == 0) {
+			/* ethernet pre-amble & interframe gap & FCS
+			 * Linux will have already accounted for MACs & frame type 14 bytes
+			 * you may need to add vlan tag*/
+			overhead = 24;
+
 		} else if (strcmp(*argv, "ether-fcs") == 0) {
 			/* Frame Check Sequence */
 			/* we ignore the minimum frame size, because IP packets usually meet it */
@@ -203,9 +255,14 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
 	if (overhead > -999)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
+	if (interval)
+		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
+	if (interval)
+		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
+
 
 static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
@@ -213,9 +270,11 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned bandwidth = 0;
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
+	unsigned interval = 0;
 	int overhead = 0;
 	int atm = 0;
 	SPRINT_BUF(b1);
+	SPRINT_BUF(b2);
 
 	if (opt == NULL)
 		return 0;
@@ -245,6 +304,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		case 4:
 			fprintf(f, "diffserv4 ");
+			break;
+		case 5:
+			fprintf(f, "squash ");
 			break;
 		default:
 			fprintf(f, "(?diffserv?) ");
@@ -283,16 +345,23 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
 		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
 	}
+	if (tb[TCA_CAKE_RTT] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
+		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
+	}
 
-	if(atm)
+	if (interval)
+		fprintf(f, "rtt %s ", sprint_time(interval, b2));
+
+	if (atm)
 		fprintf(f, "atm ");
-	else if(overhead)
+	else if (overhead)
 		fprintf(f, "noatm ");
 
-	if(overhead || atm)
+	if (overhead || atm)
 		fprintf(f, "overhead %d ", overhead);
 
-	if(!atm && !overhead)
+	if (!atm && !overhead)
 		fprintf(f, "raw ");
 
 	return 0;
@@ -303,7 +372,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 {
 	/* fq_codel stats format borrowed */
 	struct tc_fq_codel_xstats *st;
-	struct tc_cake_xstats     *stc;
+	struct tc_cake_old_xstats *stc;
+	struct tc_cake_xstats     *stnc;
 	SPRINT_BUF(b1);
 
 	if (xstats == NULL)
@@ -312,8 +382,9 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	if (RTA_PAYLOAD(xstats) < sizeof(st->type))
 		return -1;
 
-	st  = RTA_DATA(xstats);
-	stc = RTA_DATA(xstats);
+	st   = RTA_DATA(xstats);
+	stc  = RTA_DATA(xstats);
+	stnc = RTA_DATA(xstats);
 
 	if (st->type == TCA_FQ_CODEL_XSTATS_QDISC && RTA_PAYLOAD(xstats) >= sizeof(*st)) {
 		fprintf(f, "  maxpacket %u drop_overlimit %u new_flow_count %u ecn_mark %u",
@@ -344,7 +415,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		fprintf(f, "        ");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, "   Class %u  ", i);
+			fprintf(f, "     Bin %u  ", i);
 		fprintf(f, "\n");
 
 		fprintf(f, "  rate  ");
@@ -362,17 +433,17 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12s", sprint_time(stc->cls[i].interval_us, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Pk delay");
+		fprintf(f, "Pk-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].peak_delay, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Av delay");
+		fprintf(f, "Av-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].avge_delay, b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "Sp delay");
+		fprintf(f, "Sp-delay");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].base_delay, b1));
 		fprintf(f, "\n");
@@ -382,17 +453,17 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].packets);
 		fprintf(f, "\n");
 
-		fprintf(f, "way inds");
+		fprintf(f, "way-inds");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_indirect_hits);
 		fprintf(f, "\n");
 
-		fprintf(f, "way miss");
+		fprintf(f, "way-miss");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_misses);
 		fprintf(f, "\n");
 
-		fprintf(f, "way cols");
+		fprintf(f, "way-cols");
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_collisions);
 		fprintf(f, "\n");
@@ -412,9 +483,120 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stc->cls[i].ecn_marked);
 		fprintf(f, "\n");
 
-		fprintf(f, "  flows ");
+		fprintf(f, "Sp-flows");
 		for(i=0; i < stc->class_cnt; i++)
-			fprintf(f, " %4u + %4u", stc->cls[i].sparse_flows, stc->cls[i].bulk_flows);
+			fprintf(f, "%12u", stc->cls[i].sparse_flows);
+		fprintf(f, "\n");
+
+		fprintf(f, "Bk-flows");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].bulk_flows);
+		fprintf(f, "\n");
+
+		fprintf(f, "last-len");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].last_skblen);
+		fprintf(f, "\n");
+
+		fprintf(f, "max-len ");
+		for(i=0; i < stc->class_cnt; i++)
+			fprintf(f, "%12u", stc->cls[i].max_skblen);
+		fprintf(f, "\n");
+	} else if (stnc->version >= 1 && stnc->version < 0xFF
+				&& stnc->max_tins == TC_CAKE_MAX_TINS
+				&& RTA_PAYLOAD(xstats) >= sizeof(*stc))
+	{
+		int i;
+
+		fprintf(f, "        ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "     Tin %u  ", i);
+		fprintf(f, "\n");
+
+		fprintf(f, "  thresh");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_rate(stnc->threshold_rate[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "  target");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->target_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "interval");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->interval_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Pk-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->peak_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Av-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->avge_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "Sp-delay");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12s", sprint_time(stnc->base_delay_us[i], b1));
+		fprintf(f, "\n");
+
+		fprintf(f, "  pkts  ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->sent[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "  bytes ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12llu", stnc->sent[i].bytes);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-inds");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_indirect_hits[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-miss");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_misses[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "way-cols");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->way_collisions[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "  drops ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->dropped[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "  marks ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->ecn_marked[i].packets);
+		fprintf(f, "\n");
+
+		fprintf(f, "Sp-flows");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->sparse_flows[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "Bk-flows");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->bulk_flows[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "last-len");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->last_skblen[i]);
+		fprintf(f, "\n");
+
+		fprintf(f, "max-len ");
+		for(i=0; i < stnc->tin_cnt; i++)
+			fprintf(f, "%12u", stnc->max_skblen[i]);
+		fprintf(f, "\n");
 	} else {
 		return -1;
 	}
