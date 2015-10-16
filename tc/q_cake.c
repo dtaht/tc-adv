@@ -495,9 +495,12 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 	} else if (stnc->version >= 1 && stnc->version < 0xFF
 				&& stnc->max_tins == TC_CAKE_MAX_TINS
-				&& RTA_PAYLOAD(xstats) >= sizeof(*stc))
+				&& RTA_PAYLOAD(xstats) >= offsetof(*stnc, capacity_estimate))
 	{
 		int i;
+
+		if(stnc->version >= 2)
+			fprintf(f, "capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
 
 		fprintf(f, "        ");
 		for(i=0; i < stnc->tin_cnt; i++)
