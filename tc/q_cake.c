@@ -50,7 +50,7 @@
 
 static void explain(void)
 {
-	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* ]\n"
+	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
 	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
@@ -69,6 +69,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int overhead = -99999;
 	int flowmode = -1;
 	int atm = -1;
+	int autorate = -1;
 	struct rtattr *tail;
 
 	while (argc > 0) {
@@ -79,9 +80,13 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			unlimited = 0;
+			autorate = 0;
 		} else if (strcmp(*argv, "unlimited") == 0) {
 			bandwidth = 0;
 			unlimited = 1;
+			autorate = 0;
+		} else if (strcmp(*argv, "autorate_ingress") == 0) {
+			autorate = 1;
 
 		} else if (strcmp(*argv, "rtt") == 0) {
 			NEXT_ARG();
@@ -257,8 +262,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
-	if (interval)
+	if (target)
 		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
+	if (autorate != -1)
+		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
@@ -273,6 +280,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned interval = 0;
 	int overhead = 0;
 	int atm = 0;
+	int autorate = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -288,6 +296,14 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			fprintf(f, "bandwidth %s ", sprint_rate(bandwidth, b1));
 		else
 			fprintf(f, "unlimited ");
+	}
+	if (tb[TCA_CAKE_AUTORATE] &&
+		RTA_PAYLOAD(tb[TCA_CAKE_AUTORATE]) >= sizeof(__u32)) {
+		autorate = rta_getattr_u32(tb[TCA_CAKE_AUTORATE]);
+		if(autorate == 1)
+			fprintf(f, "autorate_ingress ");
+		else if(autorate)
+			fprintf(f, "(?autorate?) ");
 	}
 	if (tb[TCA_CAKE_DIFFSERV_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
