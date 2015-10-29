@@ -1,0 +1,225 @@
+.TH CAKE 8 "15 October 2015" "iproute2" "Linux"
+.SH NAME
+CAKE \- COMMON Applications Kept Enhanced (CAKE)
+.SH SYNOPSIS
+.B tc qdisc ... cake
+[
+.B bandwidth RATE
+|
+.B unlimited
+|
+.B autorate_ingress
+] [
+.B rtt
+TIME |
+.B datacenter
+|
+.B lan
+|
+.B metro
+|
+.B regional
+|
+.B internet
+|
+.B oceanic
+|
+.B satellite
+|
+.B interplanetary
+] [	
+.B besteffort
+|
+.B squash
+|
+.B precedence
+|
+.B diffserv8
+|
+.B diffserv4
+] [
+.B flowbind
+|
+.B srchost
+|
+.B dsthost
+|
+.B hosts
+|
+.B flows
+] [
+.B atm
+|
+.B noatm
+] [
+.B overhead N
+|
+.B conservative
+|
+.B raw
+]
+
+.SH DESCRIPTION
+CAKE (COMMON Applications Kept Enhanced) is queuing discipline that uses an AQM 
+scheme. It combines CoDel, a shaper which operates in deficit mode and uses a 
+variant of DRR for flow isolation. An 8-way set-associative hashing is used 
+to virtually eliminate hash collisions. Priority queuing is available through 
+a simplified diffserv implementation. Various encapsulation schemes are 
+available for edge-equipment connectivity.
+
+
+.SH PARAMETERS
+.SS bandwidth RATE | unlimited | autorate_ingress
+.B bandwidth
+Set the bandwidth of the interface in Mbit/s
+.PP
+.B unlimited
+No limits on the bandwidth.
+.PP
+.B autorate_ingress
+Automatic capacity estimation.
+.PP
+Default is unlimited.
+
+.SS rtt TIME | datacenter | lan | metro | regional | internet | oceanic | satel\
+lite | interplanetary 
+.B datacenter
+Very small latencies of the order of 100us.
+.PP
+.B lan
+Small latencies typically of around 1-2ms.
+.PP
+.B metro
+Latencies of the order of 10ms.
+.PP
+.B regional
+Latencies of the order of 30ms.
+.PP
+.B internet
+Latencies of the order of 100ms.
+.PP
+.B oceanic
+Latencies of the order of 300ms.
+.PP
+.B satellite
+Latencies of the order of 1000ms.
+.PP
+.B interplanetary
+Latencies of the order of 1 hour.
+.PP
+Default is internet.
+.PP
+.SS Priority queue layer
+.B besteffort
+Disables priority queue layer.
+.PP
+.B squash
+Removes DSCP from packets and applies besteffort to the result
+.PP
+.B precendence
+Legacy mode with 8 classes.
+.PP
+.B diffserv8
+8 bins of priority
+.PP
+.B diffserv4
+4 bins of priority
+.PP
+Default is diffserv4.
+.PP
+.SS Flow isolation layer 
+.B flowbind
+Disables flow isolation layer & gives pures single queue CoDel AQM behaviour
+.PP
+.B srchost
+Use only source address.
+.PP
+.B dsthost
+Use only destination address.
+.PP
+.B hosts
+Ingore protocol and port fields.
+.PP
+.B flows
+Uses entire 5-tuple
+.PP
+Default is flows.
+.SS encapsulation layer
+.B atm
+Enable ATM
+.PP
+.B noatm
+Disable ATM
+.PP
+Default is noatm.
+.SS Overhead compensation
+.B Overhead
+Specify N, which is the amount of overhead.
+.PP
+.B conservative
+A large enough overhead which is higher than most overheads.
+.PP
+.B raw
+Disable overhead compensation.
+.PP
+Default is raw.
+
+.SH EXAMPLES
+#tc qdisc add dev enp3s0 root cake bandwidth 30mbit
+.br
+#tc -s qdisc show dev enp3s0
+.br
+qdisc cake 8001: root refcnt 2 bandwidth 30Mbit diffserv4 flows rtt 100.0ms raw 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0 
+capacity estimate: 30Mbit
+.br
+             Tin 0       Tin 1       Tin 2       Tin 3  
+.br
+  thresh      30Mbit   28125Kbit   22500Kbit    7500Kbit
+.br
+  target       5.0ms       5.0ms       5.0ms       5.0ms
+.br
+interval     100.0ms     100.0ms     100.0ms     100.0ms
+.br
+Pk-delay         0us         0us         0us         0us
+.br
+Av-delay         0us         0us         0us         0us
+.br
+Sp-delay         0us         0us         0us         0us
+.br
+  pkts             0           0           0           0
+.br
+  bytes            0           0           0           0
+.br
+way-inds           0           0           0           0
+.br
+way-miss           0           0           0           0
+.br
+way-cols           0           0           0           0
+.br
+  drops            0           0           0           0
+.br
+  marks            0           0           0           0
+.br
+Sp-flows           0           0           0           0
+.br
+Bk-flows           0           0           0           0
+.br
+last-len           0           0           0           0
+.br
+max-len            0           0           0           0
+.br
+
+
+.SH SEE ALSO
+.BR tc (8),
+.BR tc-codel (8),
+.BR tc-fq_codel (8),
+.BR tc-red (8)
+
+.SH AUTHORS
+CAKE was implemented by Jonathan Morton, with contributions from Dave Taht,
+Kevin Darbyshire-Bryant, Toke Hoiland-Jorgensen and Loganaden Velvindron. 
+This manual page was written by Loganaden Velvindron. Please report corrections 
+to the Linux Networking mailing list <netdev@vger.kernel.org>.
