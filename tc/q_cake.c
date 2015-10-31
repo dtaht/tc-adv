@@ -95,9 +95,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				fprintf(stderr, "Illegal \"rtt\"\n");
 				return -1;
 			}
-			target = interval / 20;
-			if(target > 5000)
-				target = 5000;
+			target = interval / 16;
 			if(!target)
 				target = 1;
 		} else if (strcmp(*argv, "datacentre") == 0) {
