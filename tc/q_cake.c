@@ -56,7 +56,7 @@ static void explain(void)
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
-	                "                [ memory MAX_BUFFER_SIZE_IN_KB ]\n"
+	                "                [ memory LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
 
@@ -239,11 +239,9 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			}
 
 		} else if (strcmp(*argv, "memory") == 0) {
-			char* p = NULL;
 			NEXT_ARG();
-			memory = strtol(*argv, &p, 10) * 1024;
-			if(!p || *p || !*argv) {
-				fprintf(stderr, "Illegal \"memory\"\n");
+			if(get_size(&memory, *argv)) {
+				fprintf(stderr, "Illegal value for \"memory\": \"%s\"\n", *argv);
 				return -1;
 			}
 
@@ -394,7 +392,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		fprintf(f, "raw ");
 
 	if (memory)
-		fprintf(f, "memory %u", memory / 1024);
+		fprintf(f, "memory %s", sprint_size(memory, b1));
 
 	return 0;
 }
@@ -407,6 +405,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	struct tc_cake_old_xstats *stc;
 	struct tc_cake_xstats     *stnc;
 	SPRINT_BUF(b1);
+	SPRINT_BUF(b2);
 
 	if (xstats == NULL)
 		return 0;
@@ -532,7 +531,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		int i;
 
 		if(stnc->version >= 3)
-			fprintf(f, "memory used: %u of %u KB\n", stnc->memory_used / 1024, stnc->memory_limit / 1024);
+			fprintf(f, "memory used: %s of %s\n", sprint_size(stnc->memory_used, b1), sprint_size(stnc->memory_limit, b2));
 
 		if(stnc->version >= 2)
 			fprintf(f, "capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
