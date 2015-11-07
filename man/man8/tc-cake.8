@@ -59,7 +59,7 @@ TIME |
 .B raw
 ]
 [
-.B memory
+.B memlimit
 LIMIT
 ]
 
@@ -169,7 +169,7 @@ Disable overhead compensation.
 Default is raw.
 
 .PP
-.SS memory LIMIT
+.SS memlimit LIMIT
 Limit the memory consumed by Cake to LIMIT bytes. Note that this does not
 translate directly to queue size, as there is some overhead in the data
 structures containing the packets, especially for small packets.

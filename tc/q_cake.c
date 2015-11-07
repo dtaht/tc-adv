@@ -56,7 +56,7 @@ static void explain(void)
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
-	                "                [ memory LIMIT ]\n"
+	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
 
@@ -68,7 +68,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned interval = 0;
 	unsigned target = 0;
 	unsigned diffserv = 0;
-	unsigned memory = 0;
+	unsigned memlimit = 0;
 	int overhead = -99999;
 	int flowmode = -1;
 	int atm = -1;
@@ -238,10 +238,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 
-		} else if (strcmp(*argv, "memory") == 0) {
+		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
-			if(get_size(&memory, *argv)) {
-				fprintf(stderr, "Illegal value for \"memory\": \"%s\"\n", *argv);
+			if(get_size(&memlimit, *argv)) {
+				fprintf(stderr, "Illegal value for \"memlimit\": \"%s\"\n", *argv);
 				return -1;
 			}
 
@@ -274,8 +274,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
 	if (autorate != -1)
 		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
-	if (memory)
-		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memory, sizeof(memory));
+	if (memlimit)
+		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit, sizeof(memlimit));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
@@ -288,7 +288,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
 	unsigned interval = 0;
-	unsigned memory = 0;
+	unsigned memlimit = 0;
 	int overhead = 0;
 	int atm = 0;
 	int autorate = 0;
@@ -391,8 +391,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (!atm && !overhead)
 		fprintf(f, "raw ");
 
-	if (memory)
-		fprintf(f, "memory %s", sprint_size(memory, b1));
+	if (memlimit)
+		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
 
 	return 0;
 }
