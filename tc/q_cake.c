@@ -393,7 +393,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		fprintf(f, "raw ");
 
 	if (memory)
-		fprintf(f, "memory %u", memory);
+		fprintf(f, "memory %u", memory / 1024);
 
 	return 0;
 }
@@ -531,7 +531,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		int i;
 
 		if(stnc->version >= 3)
-			fprintf(f, "memory used: %u of %u KB\n", stnc->memory_used, stnc->memory_limit);
+			fprintf(f, "memory used: %u of %u KB\n", stnc->memory_used / 1024, stnc->memory_limit / 1024);
 
 		if(stnc->version >= 2)
 			fprintf(f, "capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
