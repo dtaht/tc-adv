@@ -95,7 +95,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				fprintf(stderr, "Illegal \"rtt\"\n");
 				return -1;
 			}
-			target = interval / 16;
+			target = interval / 20;
 			if(!target)
 				target = 1;
 		} else if (strcmp(*argv, "datacentre") == 0) {
@@ -115,10 +115,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			target   =   5000;
 		} else if (strcmp(*argv, "oceanic") == 0) {
 			interval = 300000;
-			target   =   5000;
+			target   =  15000;
 		} else if (strcmp(*argv, "satellite") == 0) {
 			interval = 1000000;
-			target   =    5000;
+			target   =   50000;
 		} else if (strcmp(*argv, "interplanetary") == 0) {
 			interval = 3600000000U;
 			target   =       5000;
