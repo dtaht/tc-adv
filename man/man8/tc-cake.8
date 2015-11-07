@@ -58,6 +58,10 @@ TIME |
 |
 .B raw
 ]
+[
+.B memory
+LIMIT
+]
 
 .SH DESCRIPTION
 CAKE (COMMON Applications Kept Enhanced) is queuing discipline that uses an AQM 
@@ -163,6 +167,16 @@ A large enough overhead which is higher than most overheads.
 Disable overhead compensation.
 .PP
 Default is raw.
+
+.PP
+.SS memory LIMIT
+Limit the memory consumed by Cake to LIMIT bytes. Note that this does not
+translate directly to queue size, as there is some overhead in the data
+structures containing the packets, especially for small packets.
+.PP
+The default limit is calculated to something reasonable based on the configured
+bandwidth and RTT.
+
 
 .SH EXAMPLES
 #tc qdisc add dev enp3s0 root cake bandwidth 30mbit
