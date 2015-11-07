@@ -56,6 +56,7 @@ static void explain(void)
 	                "                [ besteffort | squash | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+	                "                [ memory MAX_BUFFER_SIZE_IN_KB ]\n"
 	                "    (* marks defaults)\n");
 }
 
@@ -233,7 +234,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			NEXT_ARG();
 			overhead = strtol(*argv, &p, 10);
 			if(!p || *p || !*argv || overhead < -64 || overhead > 256) {
-				fprintf(stderr, "Illegal \"overhead\"\n");
+				fprintf(stderr, "Illegal \"overhead\", valid range is -64 to 256\\n");
 				return -1;
 			}
 
