@@ -67,6 +67,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned interval = 0;
 	unsigned target = 0;
 	unsigned diffserv = 0;
+	unsigned memory = 0;
 	int overhead = -99999;
 	int flowmode = -1;
 	int atm = -1;
@@ -236,6 +237,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 
+		} else if (strcmp(*argv, "memory") == 0) {
+			char* p = NULL;
+			NEXT_ARG();
+			memory = strtol(*argv, &p, 10) * 1024;
+			if(!p || *p || !*argv) {
+				fprintf(stderr, "Illegal \"memory\"\n");
+				return -1;
+			}
+
 		} else if (strcmp(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -265,6 +275,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
 	if (autorate != -1)
 		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
+	if (memory)
+		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memory, sizeof(memory));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
@@ -277,6 +289,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
 	unsigned interval = 0;
+	unsigned memory = 0;
 	int overhead = 0;
 	int atm = 0;
 	int autorate = 0;
@@ -378,6 +391,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (!atm && !overhead)
 		fprintf(f, "raw ");
+
+	if (memory)
+		fprintf(f, "memory %u", memory);
 
 	return 0;
 }
@@ -513,6 +529,9 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 				&& RTA_PAYLOAD(xstats) >= offsetof(struct tc_cake_xstats, capacity_estimate))
 	{
 		int i;
+
+		if(stnc->version >= 3)
+			fprintf(f, "memory used: %u of %u KB\n", stnc->memory_used, stnc->memory_limit);
 
 		if(stnc->version >= 2)
 			fprintf(f, "capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
