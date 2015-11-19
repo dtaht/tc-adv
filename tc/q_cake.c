@@ -56,7 +56,7 @@ static void explain(void)
 	                "                [ besteffort | precedence | diffserv8 | diffserv4* ]\n"
 	                "                [ flowblind | srchost | dsthost | hosts | flows* ]\n"
 	                "                [ atm | noatm* ] [ overhead N | conservative | raw* ]\n"
-	                "                [ squash | nosquash* ]\n"
+	                "                [ wash | nowash* ]\n"
 	                "                [ memlimit LIMIT ]\n"
 	                "    (* marks defaults)\n");
 }
@@ -70,7 +70,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned target = 0;
 	unsigned diffserv = 0;
 	unsigned memlimit = 0;
-	int squash = -1;
+	int wash = -1;
 	int overhead = -99999;
 	int flowmode = -1;
 	int atm = -1;
@@ -138,12 +138,13 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "diffserv") == 0) {
 			diffserv = 4;
 
-		} else if (strcmp(*argv, "nosquash") == 0) {
-			squash = 0;
+		} else if (strcmp(*argv, "nowash") == 0) {
+			wash = 0;
+		} else if (strcmp(*argv, "wash") == 0) {
+			wash = 1;
 		} else if (strcmp(*argv, "squash") == 0) {
-			squash = 1;
-			if (!diffserv)
-				diffserv = 1; /* default to besteffort */
+			diffserv = 1; /* synonym for besteffort wash*/
+			wash = 1;
 
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = 0;
@@ -283,8 +284,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
 	if (memlimit)
 		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit, sizeof(memlimit));
-	if (squash != -1)
-		addattr_l(n, 1024, TCA_CAKE_SQUASH, &squash, sizeof(squash));
+	if (wash != -1)
+		addattr_l(n, 1024, TCA_CAKE_WASH, &wash, sizeof(wash));
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
@@ -301,7 +302,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int overhead = 0;
 	int atm = 0;
 	int autorate = 0;
-	int squash = 0;
+	int wash = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -371,9 +372,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		};
 	}
-	if (tb[TCA_CAKE_SQUASH] &&
-	    RTA_PAYLOAD(tb[TCA_CAKE_SQUASH]) >= sizeof(__u32)) {
-		squash = rta_getattr_u32(tb[TCA_CAKE_SQUASH]);
+	if (tb[TCA_CAKE_WASH] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_WASH]) >= sizeof(__u32)) {
+		wash = rta_getattr_u32(tb[TCA_CAKE_WASH]);
 	}
 	if (tb[TCA_CAKE_ATM] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ATM]) >= sizeof(__u32)) {
@@ -388,8 +389,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
 	}
 
-	if (squash)
-		fprintf(f,"squash ");
+	if (wash)
+		fprintf(f,"wash ");
 
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
