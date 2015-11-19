@@ -417,7 +417,6 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 {
 	/* fq_codel stats format borrowed */
 	struct tc_fq_codel_xstats *st;
-	struct tc_cake_old_xstats *stc;
 	struct tc_cake_xstats     *stnc;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
@@ -429,7 +428,6 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		return -1;
 
 	st   = RTA_DATA(xstats);
-	stc  = RTA_DATA(xstats);
 	stnc = RTA_DATA(xstats);
 
 	if (st->type == TCA_FQ_CODEL_XSTATS_QDISC && RTA_PAYLOAD(xstats) >= sizeof(*st)) {
