@@ -475,26 +475,22 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "\n");
 
 		fprintf(f, "  interval");
-		fprintf(f, "%10s", sprint_time(stc->cls[0].interval_us, b1));
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].interval_us, b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "pk_delay");
-		fprintf(f, "%10s", sprint_time(stc->cls[0].peak_delay, b1));
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].peak_delay, b1));
 		fprintf(f, "\n");
-		fprintf(f, "%10s", sprint_time(stc->cls[0].avge_delay, b1));
 
 		fprintf(f, "av_delay");
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].avge_delay, b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "sp_delay");
-		fprintf(f, "%10s", sprint_time(stc->cls[i].base_delay, b1));
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stc->cls[i].base_delay, b1));
 		fprintf(f, "\n");
 
@@ -504,19 +500,16 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_inds");
-		fprintf(f, "%10u", stc->cls[0].way_indirect_hits);
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_indirect_hits);
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_miss");
-		fprintf(f, "%10u", stc->cls[0].way_misses);
-		for(i=1; i < stc->class_cnt; i++)
+		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_misses);
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_cols");
-		fprintf(f, "%10u", stc->cls[0].way_collisions);
 		for(i=0; i < stc->class_cnt; i++)
 			fprintf(f, "%12u", stc->cls[i].way_collisions);
 		fprintf(f, "\n");
@@ -563,99 +556,88 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "     Tin %u  ", i);
 		fprintf(f, "\n");
 
-		fprintf(f, "  thresh");
+		fprintf(f, "  thresh  ");
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_rate(stnc->threshold_rate[i], b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "  target");
+		fprintf(f, "  target  ");
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stnc->target_us[i], b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "  interval");
-		fprintf(f, "%10s", sprint_time(stnc->interval_us[0], b1));
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stnc->interval_us[i], b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "  pk_delay");
-		fprintf(f, "%10s", sprint_time(stnc->peak_delay_us[0], b1));
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stnc->peak_delay_us[i], b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "  av_delay");
-			fprintf(f, "%10s", sprint_time(stnc->avge_delay_us[0], b1));
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stnc->avge_delay_us[i], b1));
 		fprintf(f, "\n");
 
 		fprintf(f, "  sp_delay");
-		fprintf(f, "%10s", sprint_time(stnc->base_delay_us[0], b1));
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12s", sprint_time(stnc->base_delay_us[i], b1));
 		fprintf(f, "\n");
 
-		fprintf(f, "  pkts  ");
+		fprintf(f, "  pkts    ");
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->sent[i].packets);
 		fprintf(f, "\n");
 
-		fprintf(f, "  bytes ");
+		fprintf(f, "  bytes   ");
 		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "%12s", sprint_size(stnc->sent[i].bytes,b1));
+			fprintf(f, "%12llu", stnc->sent[i].bytes);
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_inds");
-		fprintf(f, "%10u", stnc->way_indirect_hits[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->way_indirect_hits[i]);
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_miss");
-		fprintf(f, "%10u", stnc->way_misses[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->way_misses[i]);
 		fprintf(f, "\n");
 
 		fprintf(f, "  way_cols");
-		fprintf(f, "%10u", stnc->way_collisions[i]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->way_collisions[i]);
 		fprintf(f, "\n");
 
-		fprintf(f, "  drops ");
+		fprintf(f, "  drops   ");
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->dropped[i].packets);
 		fprintf(f, "\n");
 
-		fprintf(f, "  marks ");
+		fprintf(f, "  marks   ");
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->ecn_marked[i].packets);
 		fprintf(f, "\n");
 
 		fprintf(f, "  sp_flows");
-		fprintf(f, "%10u", stnc->sparse_flows[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->sparse_flows[i]);
 		fprintf(f, "\n");
 
 		fprintf(f, "  bk_flows");
-			fprintf(f, "%10u", stnc->bulk_flows[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->bulk_flows[i]);
 		fprintf(f, "\n");
 
 		fprintf(f, "  last_len");
-			fprintf(f, "%10u", stnc->last_skblen[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->last_skblen[i]);
 		fprintf(f, "\n");
 
 		fprintf(f, "  max_len ");
-			fprintf(f, "%10u", stnc->max_skblen[0]);
-		for(i=1; i < stnc->tin_cnt; i++)
+		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->max_skblen[i]);
 		fprintf(f, "\n");
 	} else {
