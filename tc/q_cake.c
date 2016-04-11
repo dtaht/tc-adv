@@ -137,6 +137,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = 4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
 			diffserv = 4;
+		} else if (strcmp(*argv, "diffserv-llt") == 0) {
+			diffserv = 5;
 
 		} else if (strcmp(*argv, "nowash") == 0) {
 			wash = 0;
@@ -348,6 +350,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		case 4:
 			fprintf(f, "diffserv4 ");
+			break;
+		case 5:
+			fprintf(f, "diffserv-llt ");
 			break;
 		default:
 			fprintf(f, "(?diffserv?) ");
