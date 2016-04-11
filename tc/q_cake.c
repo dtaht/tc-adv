@@ -486,10 +486,21 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		if(stnc->version >= 2)
 			fprintf(f, " capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
 
-		fprintf(f, "        ");
-		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "     Tin %u  ", i);
-		fprintf(f, "\n");
+		switch(stnc->tin_cnt) {
+		case 4:
+			fprintf(f, "             Bulk    Best Effort     Video       Voice\n");
+			break;
+
+		case 5:
+			fprintf(f, "          Low Loss   Best Effort   Low Delay     Bulk    Net Control\n");
+			break;
+
+		default:
+			fprintf(f, "        ");
+			for(i=0; i < stnc->tin_cnt; i++)
+				fprintf(f, "     Tin %u  ", i);
+			fprintf(f, "\n");
+		};
 
 		fprintf(f, "  thresh  ");
 		for(i=0; i < stnc->tin_cnt; i++)
