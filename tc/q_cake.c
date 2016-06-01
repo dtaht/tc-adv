@@ -488,11 +488,11 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		switch(stnc->tin_cnt) {
 		case 4:
-			fprintf(f, "                 Bulk    Best Effort     Video       Voice\n");
+			fprintf(f, "                 Bulk  Best Effort       Video       Voice\n"); 
 			break;
 
 		case 5:
-			fprintf(f, "             Low Loss   Best Effort   Low Delay     Bulk    Net Control\n");
+			fprintf(f, "             Low Loss  Best Effort   Low Delay       Bulk  Net Control\n");
 			break;
 
 		default:
