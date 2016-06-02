@@ -71,7 +71,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned diffserv = 0;
 	unsigned memlimit = 0;
 	int wash = -1;
-	int overhead = -99999;
+	int  overhead = 0;
+	bool overhead_set = false;
 	int flowmode = -1;
 	int atm = -1;
 	int autorate = -1;
@@ -173,6 +174,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "raw") == 0) {
 			atm = 0;
 			overhead = 0;
+			overhead_set = true;
 		} else if (strcmp(*argv, "conservative") == 0) {
 			/*
 			 * Deliberately over-estimate overhead:
@@ -181,41 +183,50 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 */
 			atm = 1;
 			overhead = 48;
+			overhead_set = true;
 
 		/* Various ADSL framing schemes */
 		} else if (strcmp(*argv, "ipoa-vcmux") == 0) {
 			atm = 1;
-			overhead = 8;
+			overhead += 8;
+			overhead_set = true;
 		} else if (strcmp(*argv, "ipoa-llcsnap") == 0) {
 			atm = 1;
-			overhead = 16;
+			overhead += 16;
+			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-vcmux") == 0) {
 			atm = 1;
-			overhead = 24;
+			overhead += 24;
+			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-llcsnap") == 0) {
 			atm = 1;
-			overhead = 32;
+			overhead += 32;
+			overhead_set = true;
 		} else if (strcmp(*argv, "pppoa-vcmux") == 0) {
 			atm = 1;
-			overhead = 10;
+			overhead += 10;
+			overhead_set = true;
 		} else if (strcmp(*argv, "pppoa-llc") == 0) {
 			atm = 1;
-			overhead = 14;
+			overhead += 14;
+			overhead_set = true;
 		} else if (strcmp(*argv, "pppoe-vcmux") == 0) {
 			atm = 1;
-			overhead = 32;
+			overhead += 32;
+			overhead_set = true;
 		} else if (strcmp(*argv, "pppoe-llcsnap") == 0) {
 			atm = 1;
-			overhead = 40;
+			overhead += 40;
+			overhead_set = true;
 
 		/* Typical VDSL2 framing schemes */
 		/* NB: PTM includes HDLC's 0x7D/7E expansion, adds extra 1/128 */
 		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
 			atm = 0;
-			overhead = 27;
+			overhead += 27;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
 			atm = 0;
-			overhead = 19;
+			overhead += 19;
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
 			/*
@@ -224,26 +235,31 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * includes Ethernet framing overhead already.
 			 */
 			overhead -= 14;
+			overhead_set = true;
 
 		/* Additional Ethernet-related overheads used by some ISPs */
 		} else if (strcmp(*argv, "ether-phy") == 0) {
 			/* ethernet pre-amble & interframe gap 20 bytes
 			 * Linux will have already accounted for MACs & frame type 14 bytes
 			 * you probably want to add an FCS as well*/
-			overhead = 20;
+			overhead += 20;
+			overhead_set = true;
 		} else if (strcmp(*argv, "ether-all") == 0) {
 			/* ethernet pre-amble & interframe gap & FCS
 			 * Linux will have already accounted for MACs & frame type 14 bytes
 			 * you may need to add vlan tag*/
-			overhead = 24;
+			overhead += 24;
+			overhead_set = true;
 
 		} else if (strcmp(*argv, "ether-fcs") == 0) {
 			/* Frame Check Sequence */
 			/* we ignore the minimum frame size, because IP packets usually meet it */
 			overhead += 4;
+			overhead_set = true;
 		} else if (strcmp(*argv, "ether-vlan") == 0) {
 			/* 802.1q VLAN tag - may be repeated */
 			overhead += 4;
+			overhead_set = true;
 
 		} else if (strcmp(*argv, "overhead") == 0) {
 			char* p = NULL;
@@ -253,6 +269,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				fprintf(stderr, "Illegal \"overhead\", valid range is -64 to 256\\n");
 				return -1;
 			}
+			overhead_set = true;
 
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
@@ -282,7 +299,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_ATM, &atm, sizeof(atm));
 	if (flowmode != -1)
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
-	if (overhead > -999)
+	if (overhead_set)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
