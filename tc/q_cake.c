@@ -575,10 +575,12 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stnc->bulk_flows[i]);
 		fprintf(f, "\n");
 
-		fprintf(f, "  last_len");
-		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "%12u", stnc->last_skblen[i]);
-		fprintf(f, "\n");
+		if(stnc->version < 4) {
+			fprintf(f, "  last_len");
+			for(i=0; i < stnc->tin_cnt; i++)
+				fprintf(f, "%12u", stnc->last_skblen[i]);
+			fprintf(f, "\n");
+		}
 
 		fprintf(f, "  max_len ");
 		for(i=0; i < stnc->tin_cnt; i++)
