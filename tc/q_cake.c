@@ -486,11 +486,11 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		switch(stnc->tin_cnt) {
 		case 4:
-			fprintf(f, "                 Bulk  Best Effort       Video       Voice\n");
+			fprintf(f, "                 Bulk    Best Effort     Video       Voice\n");
 			break;
 
 		case 5:
-			fprintf(f, "             Low Loss  Best Effort   Low Delay       Bulk  Net Control\n");
+			fprintf(f, "               Low Loss  Best Effort   Low Delay       Bulk  Net Control\n");
 			break;
 
 		default:
@@ -575,10 +575,12 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "%12u", stnc->bulk_flows[i]);
 		fprintf(f, "\n");
 
-		fprintf(f, "  last_len");
-		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "%12u", stnc->last_skblen[i]);
-		fprintf(f, "\n");
+		if(stnc->version >= 4) {
+			fprintf(f, "  un_flows");
+			for(i=0; i < stnc->tin_cnt; i++)
+				fprintf(f, "%12u", stnc->unresponse_flows[i]);
+			fprintf(f, "\n");
+		}
 
 		fprintf(f, "  max_len ");
 		for(i=0; i < stnc->tin_cnt; i++)
