@@ -185,24 +185,14 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 
 		/*
 		 * DOCSIS overhead figures courtesy of Greg White @ CableLabs.
-		 * The "-ip" versions include the Ethernet frame header, in case
-		 * you are shaping an IP interface instead of an Ethernet one.
 		 */
-		} else if (strcmp(*argv, "docsis-downstream-ip") == 0) {
+		} else if (strcmp(*argv, "docsis-downstream") == 0) {
 			atm = 0;
 			overhead += 35;
 			overhead_set = true;
-		} else if (strcmp(*argv, "docsis-downstream") == 0) {
-			atm = 0;
-			overhead += 35 - 14;
-			overhead_set = true;
-		} else if (strcmp(*argv, "docsis-upstream-ip") == 0) {
-			atm = 0;
-			overhead += 28;
-			overhead_set = true;
 		} else if (strcmp(*argv, "docsis-upstream") == 0) {
 			atm = 0;
-			overhead += 28 - 14;
+			overhead += 28;
 			overhead_set = true;
 
 		/* Various ADSL framing schemes, all over ATM cells */
@@ -250,33 +240,24 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
 			/*
-			 * The above overheads are relative to an IP packet,
-			 * but Linux includes Ethernet framing overhead already
-			 * if we are shaping an Ethernet interface rather than
-			 * an IP interface.
+			 * We used to use this flag to manually compensate for
+			 * Linux including the Ethernet header on Ethernet-type
+			 * interfaces, but not on IP-type interfaces.
+			 *
+			 * It is no longer needed, because Cake now adjusts for
+			 * that automatically, and is thus ignored.
+			 *
+			 * It would be deleted entirely, but it appears in the
+			 * stats output when the automatic compensation is active.
 			 */
-			overhead -= 14;
-			overhead_set = true;
 
 		/* Additional Ethernet-related overheads used by some ISPs */
-		} else if (strcmp(*argv, "ether-phy") == 0) {
-			/* ethernet pre-amble & interframe gap 20 bytes
-			 * Linux will have already accounted for MACs & frame type 14 bytes
-			 * you probably want to add an FCS as well*/
-			overhead += 20;
-			overhead_set = true;
-		} else if (strcmp(*argv, "ether-all") == 0) {
+		} else if (strcmp(*argv, "ethernet") == 0) {
 			/* ethernet pre-amble & interframe gap & FCS
-			 * Linux will have already accounted for MACs & frame type 14 bytes
-			 * you may need to add vlan tag*/
-			overhead += 24;
+			 * you may need to add vlan tag */
+			overhead += 38;
 			overhead_set = true;
 
-		} else if (strcmp(*argv, "ether-fcs") == 0) {
-			/* Frame Check Sequence */
-			/* we ignore the minimum frame size, because IP packets usually meet it */
-			overhead += 4;
-			overhead_set = true;
 		} else if (strcmp(*argv, "ether-vlan") == 0) {
 			/* 802.1q VLAN tag - may be repeated */
 			overhead += 4;
@@ -347,6 +328,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned interval = 0;
 	unsigned memlimit = 0;
 	int overhead = 0;
+	int ethernet = 0;
 	int atm = 0;
 	int nat = 0;
 	int autorate = 0;
@@ -444,6 +426,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
 		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
 	}
+	if (tb[TCA_CAKE_ETHERNET] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
+		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
+	}
 	if (tb[TCA_CAKE_RTT] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
 		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
@@ -464,6 +450,11 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (!atm && !overhead)
 		fprintf(f, "raw ");
+
+	// This is actually the *amount* of automatic compensation, but we only report
+	// its presence as a boolean for now.
+	if (ethernet)
+		fprintf(f, "via-ethernet ");
 
 	if (memlimit)
 		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
