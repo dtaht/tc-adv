@@ -71,6 +71,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned memlimit = 0;
 	int  overhead = 0;
 	bool overhead_set = false;
+	bool overhead_override = false;
 	int flowmode = -1;
 	int nat = -1;
 	int atm = -1;
@@ -173,6 +174,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = 0;
 			overhead = 0;
 			overhead_set = true;
+			overhead_override = true;
 		} else if (strcmp(*argv, "conservative") == 0) {
 			/*
 			 * Deliberately over-estimate overhead:
@@ -305,6 +307,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
 	if (overhead_set)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
+	if (overhead_override) {
+		unsigned zero = 0;
+		addattr_l(n, 1024, TCA_CAKE_ETHERNET, &zero, sizeof(zero));
+	}
 	if (interval)
 		addattr_l(n, 1024, TCA_CAKE_RTT, &interval, sizeof(interval));
 	if (target)
@@ -440,23 +446,24 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
 
-	if (atm == 1)
-		fprintf(f, "atm ");
-	else if (atm == 2)
-		fprintf(f, "ptm ");
-	else if (overhead)
-		fprintf(f, "noatm ");
-
-	if (overhead || atm)
-		fprintf(f, "overhead %d ", overhead);
-
-	if (!atm && !overhead)
+	if (!atm && overhead == ethernet) {
 		fprintf(f, "raw ");
+	} else {
+		if (atm == 1)
+			fprintf(f, "atm ");
+		else if (atm == 2)
+			fprintf(f, "ptm ");
+		else if (overhead)
+			fprintf(f, "noatm ");
 
-	// This is actually the *amount* of automatic compensation, but we only report
-	// its presence as a boolean for now.
-	if (ethernet)
-		fprintf(f, "via-ethernet ");
+		if (overhead || atm)
+			fprintf(f, "overhead %d ", overhead);
+
+		// This is actually the *amount* of automatic compensation, but we only report
+		// its presence as a boolean for now.
+		if (ethernet)
+			fprintf(f, "via-ethernet ");
+	}
 
 	if (memlimit)
 		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
