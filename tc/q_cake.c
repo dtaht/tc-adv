@@ -453,11 +453,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			fprintf(f, "atm ");
 		else if (atm == 2)
 			fprintf(f, "ptm ");
-		else if (overhead)
+		else
 			fprintf(f, "noatm ");
 
-		if (overhead || atm)
-			fprintf(f, "overhead %d ", overhead);
+		fprintf(f, "overhead %d ", overhead);
 
 		// This is actually the *amount* of automatic compensation, but we only report
 		// its presence as a boolean for now.
