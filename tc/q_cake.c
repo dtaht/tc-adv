@@ -185,18 +185,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead = 48;
 			overhead_set = true;
 
-		/*
-		 * DOCSIS overhead figures courtesy of Greg White @ CableLabs.
-		 */
-		} else if (strcmp(*argv, "docsis-downstream") == 0) {
-			atm = 0;
-			overhead += 35;
-			overhead_set = true;
-		} else if (strcmp(*argv, "docsis-upstream") == 0) {
-			atm = 0;
-			overhead += 28;
-			overhead_set = true;
-
 		/* Various ADSL framing schemes, all over ATM cells */
 		} else if (strcmp(*argv, "ipoa-vcmux") == 0) {
 			atm = 1;
@@ -255,16 +243,25 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * stats output when the automatic compensation is active.
 			 */
 
-		/* Additional Ethernet-related overheads used by some ISPs */
 		} else if (strcmp(*argv, "ethernet") == 0) {
 			/* ethernet pre-amble & interframe gap & FCS
 			 * you may need to add vlan tag */
 			overhead += 38;
 			overhead_set = true;
 
+		/* Additional Ethernet-related overhead used by some ISPs */
 		} else if (strcmp(*argv, "ether-vlan") == 0) {
 			/* 802.1q VLAN tag - may be repeated */
 			overhead += 4;
+			overhead_set = true;
+
+		/*
+		 * DOCSIS cable shapers account for Ethernet frame with FCS,
+		 * but not interframe gap nor preamble.
+		 */
+		} else if (strcmp(*argv, "docsis") == 0) {
+			atm = 0;
+			overhead += 18;
 			overhead_set = true;
 
 		} else if (strcmp(*argv, "overhead") == 0) {
