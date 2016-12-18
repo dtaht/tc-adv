@@ -380,6 +380,18 @@ prevent any one LAN host from monopolising the downlink, regardless of the numbe
 intelligently (ie. not merely by host-pairs), and also over individual flows.  Use this if you're
 not certain whether to use dual-srchost or dual-dsthost; it'll do both jobs at once, preventing
 any one host on *either* side of the link from monopolising it with a large number of flows.
+.PP
+.B nat
+.br
+	Instructs Cake to perform a NAT lookup before applying flow-isolation rules, to determine the true
+addresses and port numbers of the packet, to improve fairness between hosts "inside" the NAT.  This
+has no practical effect in "flowblind" or "flows" modes, or if NAT is performed on a different host.
+.PP
+.B nonat
+(default)
+.br
+	Cake will not perform a NAT lookup.  Flow isolation will be performed using the addresses and
+port numbers directly visible to the interface Cake is attached to.
 
 .SH PRIORITY QUEUE PARAMETERS
 CAKE can divide traffic into "tins" based on the Diffserv field.  Each tin has its own independent
