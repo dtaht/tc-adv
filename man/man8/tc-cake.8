@@ -43,6 +43,8 @@ TIME |
 |
 .B diffserv4
 |
+.B diffserv3
+|
 .B diffserv-llt
 ]
 .br
@@ -354,7 +356,6 @@ individual flows, or any combination of those is desired.
 	Flows are defined by source-destination host pairs.  This is host isolation, rather than flow isolation.
 .PP
 .B flows
-(default)
 .br
 	Flows are defined by the entire 5-tuple of source address, destination address, transport
 protocol, source port and destination port.  This is the type of flow isolation performed by
@@ -373,6 +374,7 @@ over individual flows.  Good for use on ingress traffic to a LAN from the intern
 prevent any one LAN host from monopolising the downlink, regardless of the number of flows they use.
 .PP
 .B triple-isolate
+(default)
 .br
 	Flows are defined by the 5-tuple, and fairness is applied over source *and* destination addresses
 intelligently (ie. not merely by host-pairs), and also over individual flows.  Use this if you're
@@ -398,7 +400,6 @@ tuning, relative to the current shaper bandwidth and RTT settings.
 	Enables legacy interpretation of TOS "Precedence" field.  Use of this preset on the modern Internet is firmly discouraged.
 .PP
 .B diffserv-llt
-(default)
 .br
 	Provides a "Latency-Loss Tradeoff" implementation with five tins:
 .br
@@ -423,6 +424,17 @@ tuning, relative to the current shaper bandwidth and RTT settings.
 		Video (AF4x, AF3x, CS3, AF2x, CS2, TOS4, TOS1), 50% threshold.
 .br
 		Voice (CS7, CS6, EF, VA, CS5, CS4), 25% threshold.
+.PP
+.B diffserv3
+(default)
+.br
+	Provides a simple, general-purpose Diffserv implementation with three tins:
+.br
+		Bulk (CS1), 6.25% threshold, generally low priority.
+.br
+		Best Effort (general), 100% threshold.
+.br
+		Voice (CS7, CS6, EF, VA, TOS4), 25% threshold, reduced Codel interval.
 
 .SH OTHER PARAMETERS
 .B memlimit
