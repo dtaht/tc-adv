@@ -89,6 +89,11 @@ TIME |
 ]
 .br
 	[
+.B mpu
+BYTES
+]
+.br
+	[
 .B memlimit
 SIZE
 ]
@@ -149,6 +154,11 @@ to represent a number of common link technologies.
 BYTES
 .br
 	Adds BYTES to the size of each packet.  BYTES may be negative; values between -64 and 256 (inclusive) are accepted.
+.PP
+.B mpu
+BYTES
+.br
+	Rounds each packet (including overhead) up to a minimum length BYTES. BYTES may not be negative; values between 0 and 256 (inclusive) are accepted.
 .PP
 .B atm
 .br
@@ -257,7 +267,7 @@ This is specified to be an Ethernet frame including the CRC (aka FCS).
 .B docsis
 .br
 	Equivalent to
-.B overhead 18 noatm
+.B overhead 18 mpu 64 noatm
 
 .SS Ethernet Overhead Keywords
 .PP
@@ -266,7 +276,7 @@ This is specified to be an Ethernet frame including the CRC (aka FCS).
 	Accounts for Ethernet's preamble, inter-frame gap, and Frame Check Sequence.  Use this keyword when the bottleneck being shaped for is an actual Ethernet cable.
 .br
 	Equivalent to
-.B overhead 38 noatm
+.B overhead 38 mpu 84 noatm
 .PP
 .B ether-vlan
 .br
