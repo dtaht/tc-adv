@@ -51,14 +51,20 @@
 
 static void explain(void)
 {
-	fprintf(stderr, "Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
-	                "                [ rtt TIME | datacentre | lan | metro | regional | internet* | oceanic | satellite | interplanetary ]\n"
-	                "                [ besteffort | precedence | diffserv8 | diffserv4 | diffserv-llt | diffserv3* ]\n"
-	                "                [ flowblind | srchost | dsthost | hosts | flows | dual-srchost | dual-dsthost | triple-isolate* ] [ nat | nonat* ]\n"
-	                "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ] [ mpu N ]\n"
-	                "                [ wash nowash * ]\n"
-	                "                [ memlimit LIMIT ]\n"
-	                "    (* marks defaults)\n");
+	fprintf(stderr,
+"Usage: ... cake [ bandwidth RATE | unlimited* | autorate_ingress ]\n"
+"                [ rtt TIME | datacentre | lan | metro | regional |\n"
+"                  internet* | oceanic | satellite | interplanetary ]\n"
+"                [ besteffort | diffserv8 | diffserv4 | diffserv-llt |\n"
+"                  diffserv3* ]\n"
+"                [ flowblind | srchost | dsthost | hosts | flows |\n"
+"                  dual-srchost | dual-dsthost | triple-isolate* ]\n"
+"                [ nat | nonat* ]\n"
+"                [ wash | nowash * ]\n"
+"                [ memlimit LIMIT ]\n"
+"                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
+"                [ mpu N ]\n"
+"                (* marks defaults)\n");
 }
 
 static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
