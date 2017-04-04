@@ -63,7 +63,7 @@ static void explain(void)
 "                [ wash | nowash * ]\n"
 "                [ memlimit LIMIT ]\n"
 "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
-"                [ mpu N ]\n"
+"                [ mpu N ] [ ingress | egress* ]\n"
 "                (* marks defaults)\n");
 }
 
@@ -85,6 +85,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int atm = -1;
 	int autorate = -1;
 	int wash = -1;
+	int ingress = -1;
 	struct rtattr *tail;
 
 	while (argc > 0) {
@@ -301,6 +302,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 
+		} else if (strcmp(*argv, "ingress") == 0) {
+			ingress = 1;
+		} else if (strcmp(*argv, "egress") == 0) {
+			ingress = 0;
+
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
 			if(get_size(&memlimit, *argv)) {
@@ -349,6 +355,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_NAT, &nat, sizeof(nat));
 	if (wash != -1)
 		addattr_l(n, 1024, TCA_CAKE_WASH, &wash, sizeof(wash));
+	if (ingress != -1)
+		addattr_l(n, 1024, TCA_CAKE_INGRESS, &ingress, sizeof(ingress));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -370,6 +378,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int nat = 0;
 	int autorate = 0;
 	int wash = 0;
+	int ingress = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -475,6 +484,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_MPU]) >= sizeof(__u32)) {
 		mpu = rta_getattr_u32(tb[TCA_CAKE_MPU]);
 	}
+	if (tb[TCA_CAKE_INGRESS] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_INGRESS]) >= sizeof(__u32)) {
+		ingress = rta_getattr_u32(tb[TCA_CAKE_INGRESS]);
+	}
 	if (tb[TCA_CAKE_ETHERNET] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
 		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
@@ -486,6 +499,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (wash)
 		fprintf(f,"wash ");
+
+	if (ingress)
+		fprintf(f,"ingress ");
 
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
