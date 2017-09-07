@@ -518,10 +518,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 		fprintf(f, "overhead %d ", overhead);
 
-		// This is actually the *amount* of automatic compensation, but we only report
-		// its presence as a boolean for now.
-		if (ethernet)
-			fprintf(f, "via-ethernet ");
+		// This is actually the *amount* of automatic compensation, so
+		// also report the actual number... keep it short
+		if (ethernet) {
+			 fprintf(f, "via-ethernet(%d) ", ethernet);
 	}
 
 	if (mpu) {
