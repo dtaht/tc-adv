@@ -61,6 +61,7 @@ static void explain(void)
 "                  dual-srchost | dual-dsthost | triple-isolate* ]\n"
 "                [ nat | nonat* ]\n"
 "                [ wash | nowash * ]\n"
+"                [ ack-filter | no-ack-filter * ]\n"
 "                [ memlimit LIMIT ]\n"
 "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 "                [ mpu N ] [ ingress | egress* ]\n"
@@ -86,6 +87,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int autorate = -1;
 	int wash = -1;
 	int ingress = -1;
+	int ack_filter = -1;
 	struct rtattr *tail;
 
 	while (argc > 0) {
@@ -307,6 +309,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "egress") == 0) {
 			ingress = 0;
 
+		} else if (strcmp(*argv, "no-ack-filter") == 0) {
+			ack_filter = 0;
+		} else if (strcmp(*argv, "ack-filter") == 0) {
+			ack_filter = 1;
+
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
 			if(get_size(&memlimit, *argv)) {
@@ -357,6 +364,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_WASH, &wash, sizeof(wash));
 	if (ingress != -1)
 		addattr_l(n, 1024, TCA_CAKE_INGRESS, &ingress, sizeof(ingress));
+	if (ack_filter != -1)
+		addattr_l(n, 1024, TCA_CAKE_ACK_FILTER, &ack_filter, sizeof(ack_filter));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -379,6 +388,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int autorate = 0;
 	int wash = 0;
 	int ingress = 0;
+	int ack_filter = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -488,6 +498,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_INGRESS]) >= sizeof(__u32)) {
 		ingress = rta_getattr_u32(tb[TCA_CAKE_INGRESS]);
 	}
+	if (tb[TCA_CAKE_ACK_FILTER] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_ACK_FILTER]) >= sizeof(__u32)) {
+		ack_filter = rta_getattr_u32(tb[TCA_CAKE_ACK_FILTER]);
+	}
 	if (tb[TCA_CAKE_ETHERNET] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
 		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
@@ -502,6 +516,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (ingress)
 		fprintf(f,"ingress ");
+
+	if (ack_filter)
+		fprintf(f,"ack-filter ");
 
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
@@ -672,6 +689,13 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		for(i=0; i < stnc->tin_cnt; i++)
 			fprintf(f, "%12u", stnc->ecn_marked[i].packets);
 		fprintf(f, "\n");
+
+		if(stnc->version >= 5) {
+			fprintf(f, "  ack_drop");
+			for(i=0; i < stnc->tin_cnt; i++)
+				fprintf(f, "%12u", stnc->ack_drops[i].packets);
+			fprintf(f, "\n");
+		}
 
 		fprintf(f, "  sp_flows");
 		for(i=0; i < stnc->tin_cnt; i++)
