@@ -61,7 +61,7 @@ static void explain(void)
 "                  dual-srchost | dual-dsthost | triple-isolate* ]\n"
 "                [ nat | nonat* ]\n"
 "                [ wash | nowash * ]\n"
-"                [ ack-filter | no-ack-filter * ]\n"
+"                [ ack-filter | ack-filter-aggressive | no-ack-filter * ]\n"
 "                [ memlimit LIMIT ]\n"
 "                [ ptm | atm | noatm* ] [ overhead N | conservative | raw* ]\n"
 "                [ mpu N ] [ ingress | egress* ]\n"
@@ -312,7 +312,9 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "no-ack-filter") == 0) {
 			ack_filter = 0;
 		} else if (strcmp(*argv, "ack-filter") == 0) {
-			ack_filter = 1;
+			ack_filter = 0x0200;
+		} else if (strcmp(*argv, "ack-filter-aggressive") == 0) {
+			ack_filter = 0x0600;
 
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
@@ -517,7 +519,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (ingress)
 		fprintf(f,"ingress ");
 
-	if (ack_filter)
+	if (ack_filter == 0x0600)
+		fprintf(f,"ack-filter-aggressive ");
+	else if (ack_filter)
 		fprintf(f,"ack-filter ");
 
 	if (interval)
