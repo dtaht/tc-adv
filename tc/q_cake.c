@@ -137,8 +137,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			interval = 1000000;
 			target   =   50000;
 		} else if (strcmp(*argv, "interplanetary") == 0) {
-			interval = 3600000000U;
-			target   =       5000;
+			interval = 1000000000;
+			target   =   50000000;
 
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = 1;
