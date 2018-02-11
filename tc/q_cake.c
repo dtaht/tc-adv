@@ -383,7 +383,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned interval = 0;
 	unsigned memlimit = 0;
 	int overhead = 0;
-	int ethernet = 0;
+	int raw = 0;
 	int mpu = 0;
 	int atm = 0;
 	int nat = 0;
@@ -504,9 +504,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_ACK_FILTER]) >= sizeof(__u32)) {
 		ack_filter = rta_getattr_u32(tb[TCA_CAKE_ACK_FILTER]);
 	}
-	if (tb[TCA_CAKE_ETHERNET] &&
-	    RTA_PAYLOAD(tb[TCA_CAKE_ETHERNET]) >= sizeof(__u32)) {
-		ethernet = rta_getattr_u32(tb[TCA_CAKE_ETHERNET]);
+	if (tb[TCA_CAKE_RAW]) {
+		raw = 1;
 	}
 	if (tb[TCA_CAKE_RTT] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
@@ -527,27 +526,20 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (interval)
 		fprintf(f, "rtt %s ", sprint_time(interval, b2));
 
-	if (!atm && overhead == ethernet) {
+	if (raw)
 		fprintf(f, "raw ");
-	} else {
-		if (atm == 1)
-			fprintf(f, "atm ");
-		else if (atm == 2)
-			fprintf(f, "ptm ");
-		else
-			fprintf(f, "noatm ");
 
-		fprintf(f, "overhead %d ", overhead);
+	if (atm == 1)
+		fprintf(f, "atm ");
+	else if (atm == 2)
+		fprintf(f, "ptm ");
+	else if (!raw)
+		fprintf(f, "noatm ");
 
-		// This is actually the *amount* of automatic compensation, but we only report
-		// its presence as a boolean for now.
-		if (ethernet)
-			fprintf(f, "via-ethernet ");
-	}
+	fprintf(f, "overhead %d ", overhead);
 
-	if (mpu) {
+	if (mpu)
 		fprintf(f, "mpu %d ", mpu);
-	}
 
 	if (memlimit)
 		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
