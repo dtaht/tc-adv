@@ -594,7 +594,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 				fprintf(f, " drop_next %s",
 					sprint_time(st->class_stats.drop_next, b1));
 		}
-	} else if (stnc->version > 0xFF
+	} else if (stnc->version > 0x100
 		&& RTA_PAYLOAD(xstats) >= (sizeof(struct tc_cake_xstats) +
 					stnc->tin_stats_size * stnc->tin_cnt))
 	{
@@ -712,6 +712,31 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "  max_len ");
 		FOR_EACH_TIN(stnc, tst, i)
 			fprintf(f, "%12u", tst->max_skblen);
+		fprintf(f, "\n");
+
+		fprintf(f, "  max_tran");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, "%12u", tst->max_trnlen);
+		fprintf(f, "\n");
+
+		fprintf(f, "  max_adj ");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, "%12u", tst->max_adjlen);
+		fprintf(f, "\n");
+
+		fprintf(f, "  min_tran");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, "%12u", tst->min_trnlen);
+		fprintf(f, "\n");
+
+		fprintf(f, "  min_adj ");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, "%12u", tst->min_trnlen);
+		fprintf(f, "\n");
+
+		fprintf(f, "  avg_off ");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, "%12u", tst->avg_trnoff);
 		fprintf(f, "\n");
 	} else {
 		return -1;
