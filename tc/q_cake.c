@@ -727,7 +727,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "\n");
 
 		fprintf(f, "  min_adj ");
-		fprintf(f, "%12u", stnc->min_trnlen);
+		fprintf(f, "%12u", stnc->min_adjlen);
 		fprintf(f, "\n");
 
 		fprintf(f, "  avg_off ");
