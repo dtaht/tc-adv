@@ -715,28 +715,23 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, "\n");
 
 		fprintf(f, "  max_tran");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, "%12u", tst->max_trnlen);
+		fprintf(f, "%12u", stnc->max_trnlen);
 		fprintf(f, "\n");
 
 		fprintf(f, "  max_adj ");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, "%12u", tst->max_adjlen);
+		fprintf(f, "%12u", stnc->max_adjlen);
 		fprintf(f, "\n");
 
 		fprintf(f, "  min_tran");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, "%12u", tst->min_trnlen);
+		fprintf(f, "%12u", stnc->min_trnlen);
 		fprintf(f, "\n");
 
 		fprintf(f, "  min_adj ");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, "%12u", tst->min_trnlen);
+		fprintf(f, "%12u", stnc->min_trnlen);
 		fprintf(f, "\n");
 
 		fprintf(f, "  avg_off ");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, "%12u", tst->avg_trnoff);
+		fprintf(f, "%12u", stnc->avg_trnoff);
 		fprintf(f, "\n");
 	} else {
 		return -1;
