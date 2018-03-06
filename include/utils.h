@@ -37,7 +37,7 @@ extern bool do_all;
 #endif
 
 #define SPRINT_BSIZE 64
-#define SPRINT_BUF(x)	char x[SPRINT_BSIZE] = {}
+#define SPRINT_BUF(x)	char x[SPRINT_BSIZE]
 
 void incomplete_command(void) __attribute__((noreturn));
 
