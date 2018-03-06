@@ -1,7 +1,9 @@
+/* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
 /*
  * Common Applications Kept Enhanced  --  CAKE
  *
- *  Copyright (C) 2014-2015 Jonathan Morton <chromatix99@gmail.com>
+ *  Copyright (C) 2014-2018 Jonathan Morton <chromatix99@gmail.com>
+ *  Copyright (C) 2017-2018 Toke Høiland-Jørgensen <toke@toke.dk>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
