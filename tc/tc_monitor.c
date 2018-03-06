@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -30,15 +29,19 @@ static void usage(void) __attribute__((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tc monitor\n");
+	fprintf(stderr, "Usage: tc [-timestamp [-tshort] monitor\n");
 	exit(-1);
 }
 
 
 static int accept_tcmsg(const struct sockaddr_nl *who,
+			struct rtnl_ctrl_data *ctrl,
 			struct nlmsghdr *n, void *arg)
 {
-	FILE *fp = (FILE*)arg;
+	FILE *fp = (FILE *)arg;
+
+	if (timestamp)
+		print_timestamp(fp);
 
 	if (n->nlmsg_type == RTM_NEWTFILTER || n->nlmsg_type == RTM_DELTFILTER) {
 		print_filter(who, n, arg);
@@ -69,7 +72,7 @@ int do_tcmonitor(int argc, char **argv)
 {
 	struct rtnl_handle rth;
 	char *file = NULL;
-	unsigned groups = nl_mgrp(RTNLGRP_TC);
+	unsigned int groups = nl_mgrp(RTNLGRP_TC);
 
 	while (argc > 0) {
 		if (matches(*argv, "file") == 0) {
@@ -87,13 +90,17 @@ int do_tcmonitor(int argc, char **argv)
 	}
 
 	if (file) {
-		FILE *fp;
-		fp = fopen(file, "r");
+		FILE *fp = fopen(file, "r");
+		int ret;
+
 		if (fp == NULL) {
 			perror("Cannot fopen");
 			exit(-1);
 		}
-		return rtnl_from_file(fp, accept_tcmsg, (void*)stdout);
+
+		ret = rtnl_from_file(fp, accept_tcmsg, stdout);
+		fclose(fp);
+		return ret;
 	}
 
 	if (rtnl_open(&rth, groups) < 0)
@@ -101,7 +108,7 @@ int do_tcmonitor(int argc, char **argv)
 
 	ll_init_map(&rth);
 
-	if (rtnl_listen(&rth, accept_tcmsg, (void*)stdout) < 0) {
+	if (rtnl_listen(&rth, accept_tcmsg, (void *)stdout) < 0) {
 		rtnl_close(&rth);
 		exit(2);
 	}

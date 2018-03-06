@@ -29,15 +29,15 @@ static void usage(void)
 }
 
 static int veth_parse_opt(struct link_util *lu, int argc, char **argv,
-			  struct nlmsghdr *hdr)
+			  struct nlmsghdr *n)
 {
 	char *dev = NULL;
 	char *name = NULL;
 	char *link = NULL;
 	char *type = NULL;
 	int index = 0;
-	int err, len;
-	struct rtattr * data;
+	int err;
+	struct rtattr *data;
 	int group;
 	struct ifinfomsg *ifm, *peer_ifm;
 	unsigned int ifi_flags, ifi_change;
@@ -47,27 +47,27 @@ static int veth_parse_opt(struct link_util *lu, int argc, char **argv,
 		return -1;
 	}
 
-	ifm = NLMSG_DATA(hdr);
+	ifm = NLMSG_DATA(n);
 	ifi_flags = ifm->ifi_flags;
 	ifi_change = ifm->ifi_change;
 	ifm->ifi_flags = 0;
 	ifm->ifi_change = 0;
 
-	data = NLMSG_TAIL(hdr);
-	addattr_l(hdr, 1024, VETH_INFO_PEER, NULL, 0);
+	data = addattr_nest(n, 1024, VETH_INFO_PEER);
 
-	hdr->nlmsg_len += sizeof(struct ifinfomsg);
+	n->nlmsg_len += sizeof(struct ifinfomsg);
 
-	err = iplink_parse(argc - 1, argv + 1, (struct iplink_req *)hdr,
+	err = iplink_parse(argc - 1, argv + 1, (struct iplink_req *)n,
 			   &name, &type, &link, &dev, &group, &index);
 	if (err < 0)
 		return err;
 
+	if (type)
+		duparg("type", argv[err]);
+
 	if (name) {
-		len = strlen(name) + 1;
-		if (len > IFNAMSIZ)
-			invarg("\"name\" too long\n", *argv);
-		addattr_l(hdr, 1024, IFLA_IFNAME, name, len);
+		addattr_l(n, 1024,
+			  IFLA_IFNAME, name, strlen(name) + 1);
 	}
 
 	peer_ifm = RTA_DATA(data);
@@ -78,9 +78,9 @@ static int veth_parse_opt(struct link_util *lu, int argc, char **argv,
 	ifm->ifi_change = ifi_change;
 
 	if (group != -1)
-		addattr32(hdr, 1024, IFLA_GROUP, group);
+		addattr32(n, 1024, IFLA_GROUP, group);
 
-	data->rta_len = (void *)NLMSG_TAIL(hdr) - (void *)data;
+	addattr_nest_end(n, data);
 	return argc - 1 - err;
 }
 

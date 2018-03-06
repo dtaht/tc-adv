@@ -13,8 +13,7 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
- * Place - Suite 330, Boston, MA 02111-1307 USA.
+ * this program; if not, see <http://www.gnu.org/licenses>.
  */
 
 #include <stdio.h>
@@ -28,10 +27,11 @@
 static void
 explain(void)
 {
-	fprintf(stderr, "Usage: ... connmark [ZONE] [BRANCH] [index <INDEX>]\n");
+	fprintf(stderr, "Usage: ... connmark [zone ZONE] [CONTROL] [index <INDEX>]\n");
 	fprintf(stderr, "where :\n"
 		"\tZONE is the conntrack zone\n"
-		"\tBRANCH := reclassify|pipe|drop|continue|ok\n");
+		"\tCONTROL := reclassify | pipe | drop | continue | ok |\n"
+		"\t           goto chain <CHAIN_INDEX>\n");
 }
 
 static void
@@ -81,31 +81,8 @@ parse_connmark(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 		}
 	}
 
-	sel.action = TC_ACT_PIPE;
-	if (argc) {
-		if (matches(*argv, "reclassify") == 0) {
-			sel.action = TC_ACT_RECLASSIFY;
-			argc--;
-			argv++;
-		} else if (matches(*argv, "pipe") == 0) {
-			sel.action = TC_ACT_PIPE;
-			argc--;
-			argv++;
-		} else if (matches(*argv, "drop") == 0 ||
-			   matches(*argv, "shot") == 0) {
-			sel.action = TC_ACT_SHOT;
-			argc--;
-			argv++;
-		} else if (matches(*argv, "continue") == 0) {
-			sel.action = TC_ACT_UNSPEC;
-			argc--;
-			argv++;
-		} else if (matches(*argv, "pass") == 0) {
-			sel.action = TC_ACT_OK;
-			argc--;
-			argv++;
-		}
-	}
+	parse_action_control_dflt(&argc, &argv, &sel.action, false, TC_ACT_PIPE);
+	NEXT_ARG_FWD();
 
 	if (argc) {
 		if (matches(*argv, "index") == 0) {
@@ -119,10 +96,9 @@ parse_connmark(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 		}
 	}
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, MAX_MSG, tca_id, NULL, 0);
+	tail = addattr_nest(n, MAX_MSG, tca_id);
 	addattr_l(n, MAX_MSG, TCA_CONNMARK_PARMS, &sel, sizeof(sel));
-	tail->rta_len = (char *)NLMSG_TAIL(n) - (char *)tail;
+	addattr_nest_end(n, tail);
 
 	*argc_p = argc;
 	*argv_p = argv;
@@ -146,12 +122,13 @@ static int print_connmark(struct action_util *au, FILE *f, struct rtattr *arg)
 	ci = RTA_DATA(tb[TCA_CONNMARK_PARMS]);
 
 	fprintf(f, " connmark zone %d\n", ci->zone);
-	fprintf(f, "\t index %d ref %d bind %d", ci->index,
+	fprintf(f, "\t index %u ref %d bind %d", ci->index,
 		ci->refcnt, ci->bindcnt);
 
 	if (show_stats) {
 		if (tb[TCA_CONNMARK_TM]) {
 			struct tcf_t *tm = RTA_DATA(tb[TCA_CONNMARK_TM]);
+
 			print_tm(f, tm);
 		}
 	}

@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -38,7 +37,7 @@ static void usage(void) __attribute__((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ip token [ list | set | get ] [ TOKEN ] [ dev DEV ]\n");
+	fprintf(stderr, "Usage: ip token [ list | set | del | get ] [ TOKEN ] [ dev DEV ]\n");
 	exit(-1);
 }
 
@@ -51,7 +50,6 @@ static int print_token(const struct sockaddr_nl *who, struct nlmsghdr *n, void *
 	int len = n->nlmsg_len;
 	struct rtattr *tb[IFLA_MAX + 1];
 	struct rtattr *ltb[IFLA_INET6_MAX + 1];
-	char abuf[256];
 
 	if (n->nlmsg_type != RTM_NEWLINK)
 		return -1;
@@ -79,13 +77,9 @@ static int print_token(const struct sockaddr_nl *who, struct nlmsghdr *n, void *
 		return -1;
 	}
 
-	fprintf(fp, "token %s ",
-		format_host(ifi->ifi_family,
-			    RTA_PAYLOAD(ltb[IFLA_INET6_TOKEN]),
-			    RTA_DATA(ltb[IFLA_INET6_TOKEN]),
-			    abuf, sizeof(abuf)));
-	fprintf(fp, "dev %s ", ll_index_to_name(ifi->ifi_index));
-	fprintf(fp, "\n");
+	fprintf(fp, "token %s dev %s\n",
+	        format_host_rta(ifi->ifi_family, ltb[IFLA_INET6_TOKEN]),
+	        ll_index_to_name(ifi->ifi_index));
 	fflush(fp);
 
 	return 0;
@@ -94,14 +88,7 @@ static int print_token(const struct sockaddr_nl *who, struct nlmsghdr *n, void *
 static int iptoken_list(int argc, char **argv)
 {
 	int af = AF_INET6;
-	struct rtnl_dump_args da;
-	const struct rtnl_dump_filter_arg a[2] = {
-		{ .filter = print_token, .arg1 = &da, },
-		{ .filter = NULL, .arg1 = NULL, },
-	};
-
-	memset(&da, 0, sizeof(da));
-	da.fp = stdout;
+	struct rtnl_dump_args da = { .fp = stdout };
 
 	while (argc > 0) {
 		if (strcmp(*argv, "dev") == 0) {
@@ -118,7 +105,7 @@ static int iptoken_list(int argc, char **argv)
 		return -1;
 	}
 
-	if (rtnl_dump_filter_l(&rth, a) < 0) {
+	if (rtnl_dump_filter(&rth, print_token, &da) < 0) {
 		fprintf(stderr, "Dump terminated\n");
 		return -1;
 	}
@@ -126,24 +113,21 @@ static int iptoken_list(int argc, char **argv)
 	return 0;
 }
 
-static int iptoken_set(int argc, char **argv)
+static int iptoken_set(int argc, char **argv, bool delete)
 {
 	struct {
 		struct nlmsghdr n;
 		struct ifinfomsg ifi;
 		char buf[512];
-	} req;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST,
+		.n.nlmsg_type = RTM_SETLINK,
+		.ifi.ifi_family = AF_INET6,
+	};
 	struct rtattr *afs, *afs6;
-	bool have_token = false, have_dev = false;
-	inet_prefix addr;
-
-	memset(&addr, 0, sizeof(addr));
-	memset(&req, 0, sizeof(req));
-
-	req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
-	req.n.nlmsg_flags = NLM_F_REQUEST;
-	req.n.nlmsg_type = RTM_SETLINK;
-	req.ifi.ifi_family = AF_INET6;
+	bool have_token = delete, have_dev = false;
+	inet_prefix addr = { .bytelen = 16, };
 
 	while (argc > 0) {
 		if (strcmp(*argv, "dev") == 0) {
@@ -158,13 +142,7 @@ static int iptoken_set(int argc, char **argv)
 			if (matches(*argv, "help") == 0)
 				usage();
 			if (!have_token) {
-				afs = addattr_nest(&req.n, sizeof(req), IFLA_AF_SPEC);
-				afs6 = addattr_nest(&req.n, sizeof(req), AF_INET6);
 				get_prefix(&addr, *argv, req.ifi.ifi_family);
-				addattr_l(&req.n, sizeof(req), IFLA_INET6_TOKEN,
-					  &addr.data, addr.bytelen);
-				addattr_nest_end(&req.n, afs6);
-				addattr_nest_end(&req.n, afs);
 				have_token = true;
 			}
 		}
@@ -172,17 +150,22 @@ static int iptoken_set(int argc, char **argv)
 	}
 
 	if (!have_token) {
-		fprintf(stderr, "Not enough information: token "
-			"is required.\n");
+		fprintf(stderr, "Not enough information: token is required.\n");
 		return -1;
 	}
 	if (!have_dev) {
-		fprintf(stderr, "Not enough information: \"dev\" "
-			"argument is required.\n");
+		fprintf(stderr, "Not enough information: \"dev\" argument is required.\n");
 		return -1;
 	}
 
-	if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
+	afs = addattr_nest(&req.n, sizeof(req), IFLA_AF_SPEC);
+	afs6 = addattr_nest(&req.n, sizeof(req), AF_INET6);
+	addattr_l(&req.n, sizeof(req), IFLA_INET6_TOKEN,
+		  &addr.data, addr.bytelen);
+	addattr_nest_end(&req.n, afs6);
+	addattr_nest_end(&req.n, afs);
+
+	if (rtnl_talk(&rth, &req.n, NULL) < 0)
 		return -2;
 
 	return 0;
@@ -200,7 +183,9 @@ int do_iptoken(int argc, char **argv)
 		return iptoken_list(argc - 1, argv + 1);
 	} else if (matches(argv[0], "set") == 0 ||
 		   matches(argv[0], "add") == 0) {
-		return iptoken_set(argc - 1, argv + 1);
+		return iptoken_set(argc - 1, argv + 1, false);
+	} else if (matches(argv[0], "delete") == 0) {
+		return iptoken_set(argc - 1, argv + 1, true);
 	} else if (matches(argv[0], "get") == 0) {
 		return iptoken_list(argc - 1, argv + 1);
 	} else if (matches(argv[0], "help") == 0)

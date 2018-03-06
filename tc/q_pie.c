@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -37,12 +36,10 @@ static void explain(void)
 }
 
 #define ALPHA_MAX 32
-#define ALPHA_MIN 0
 #define BETA_MAX 32
-#define BETA_MIN 0
 
 static int pie_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			 struct nlmsghdr *n)
+			 struct nlmsghdr *n, const char *dev)
 {
 	unsigned int limit   = 0;
 	unsigned int target  = 0;
@@ -75,14 +72,14 @@ static int pie_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		} else if (strcmp(*argv, "alpha") == 0) {
 			NEXT_ARG();
 			if (get_unsigned(&alpha, *argv, 0) ||
-			    (alpha > ALPHA_MAX) || (alpha < ALPHA_MIN)) {
+			    (alpha > ALPHA_MAX)) {
 				fprintf(stderr, "Illegal \"alpha\"\n");
 				return -1;
 			}
 		} else if (strcmp(*argv, "beta") == 0) {
 			NEXT_ARG();
 			if (get_unsigned(&beta, *argv, 0) ||
-			    (beta > BETA_MAX) || (beta < BETA_MIN)) {
+			    (beta > BETA_MAX)) {
 				fprintf(stderr, "Illegal \"beta\"\n");
 				return -1;
 			}
@@ -106,8 +103,7 @@ static int pie_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		argv++;
 	}
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	if (limit)
 		addattr_l(n, 1024, TCA_PIE_LIMIT, &limit, sizeof(limit));
 	if (tupdate)
@@ -124,7 +120,7 @@ static int pie_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_PIE_BYTEMODE, &bytemode,
 			  sizeof(bytemode));
 
-	tail->rta_len = (void *)NLMSG_TAIL(n) - (void *)tail;
+	addattr_nest_end(n, tail);
 	return 0;
 }
 
@@ -136,8 +132,9 @@ static int pie_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned int target;
 	unsigned int alpha;
 	unsigned int beta;
-	unsigned ecn;
-	unsigned bytemode;
+	unsigned int ecn;
+	unsigned int bytemode;
+
 	SPRINT_BUF(b1);
 
 	if (opt == NULL)

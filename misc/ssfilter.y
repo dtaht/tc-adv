@@ -36,7 +36,7 @@ static void yyerror(char *s)
 
 %}
 
-%token HOSTCOND DCOND SCOND DPORT SPORT LEQ GEQ NEQ AUTOBOUND
+%token HOSTCOND DCOND SCOND DPORT SPORT LEQ GEQ NEQ AUTOBOUND DEVCOND DEVNAME MARKMASK FWMARK
 %left '|'
 %left '&'
 %nonassoc '!'
@@ -108,7 +108,22 @@ expr:	DCOND HOSTCOND
         {
 		$$ = alloc_node(SSF_NOT, alloc_node(SSF_SCOND, $3));
         }
-
+        | DEVNAME '=' DEVCOND
+        {
+		$$ = alloc_node(SSF_DEVCOND, $3);
+        }
+        | DEVNAME NEQ DEVCOND
+        {
+		$$ = alloc_node(SSF_NOT, alloc_node(SSF_DEVCOND, $3));
+        }
+        | FWMARK '=' MARKMASK
+        {
+                $$ = alloc_node(SSF_MARKMASK, $3);
+        }
+        | FWMARK NEQ MARKMASK
+        {
+                $$ = alloc_node(SSF_NOT, alloc_node(SSF_MARKMASK, $3));
+        }
         | AUTOBOUND
         {
                 $$ = alloc_node(SSF_S_AUTO, NULL);
@@ -187,15 +202,23 @@ int yylex(void)
 				argc++;
 			} else if (yy_fp) {
 				while (tokptr == NULL) {
-					if (fgets(argbuf, sizeof(argbuf)-1, yy_fp) == NULL)
+					size_t len;
+
+					if (fgets(argbuf, sizeof(argbuf), yy_fp) == NULL)
 						return 0;
-					argbuf[sizeof(argbuf)-1] = 0;
-					if (strlen(argbuf) == sizeof(argbuf) - 1) {
-						fprintf(stderr, "Too long line in filter");
+
+					len = strnlen(argbuf, sizeof(argbuf));
+					if (len == 0) {
+						fprintf(stderr, "Invalid line\n");
 						exit(-1);
 					}
-					if (argbuf[strlen(argbuf)-1] == '\n')
-						argbuf[strlen(argbuf)-1] = 0;
+
+					if (len >= sizeof(argbuf) - 1) {
+						fprintf(stderr, "Too long line in filter\n");
+						exit(-1);
+					}
+					if (argbuf[len - 1] == '\n')
+						argbuf[len-1] = 0;
 					if (argbuf[0] == '#' || argbuf[0] == '0')
 						continue;
 					tokptr = argbuf;
@@ -237,6 +260,14 @@ int yylex(void)
 		tok_type = SPORT;
 		return SPORT;
 	}
+	if (strcmp(curtok, "dev") == 0) {
+		tok_type = DEVNAME;
+		return DEVNAME;
+	}
+	if (strcmp(curtok, "fwmark") == 0) {
+		tok_type = FWMARK;
+		return FWMARK;
+	}
 	if (strcmp(curtok, ">=") == 0 ||
 	    strcmp(curtok, "ge") == 0 ||
 	    strcmp(curtok, "geq") == 0)
@@ -262,6 +293,22 @@ int yylex(void)
 	if (strcmp(curtok, "autobound") == 0) {
 		tok_type = AUTOBOUND;
 		return AUTOBOUND;
+	}
+	if (tok_type == DEVNAME) {
+		yylval = (void*)parse_devcond(curtok);
+		if (yylval == NULL) {
+			fprintf(stderr, "Cannot parse device.\n");
+			exit(1);
+		}
+		return DEVCOND;
+	}
+	if (tok_type == FWMARK) {
+		yylval = (void*)parse_markmask(curtok);
+		if (yylval == NULL) {
+			fprintf(stderr, "Cannot parse mark %s.\n", curtok);
+			exit(1);
+		}
+		return MARKMASK;
 	}
 	yylval = (void*)parse_hostcond(curtok, tok_type == SPORT || tok_type == DPORT);
 	if (yylval == NULL) {

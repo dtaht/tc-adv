@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,7 +21,7 @@
 
 #include "libnetlink.h"
 #include "ll_map.h"
-#include "hlist.h"
+#include "list.h"
 
 struct ll_cache {
 	struct hlist_node idx_hash;
@@ -30,7 +29,7 @@ struct ll_cache {
 	unsigned	flags;
 	unsigned 	index;
 	unsigned short	type;
-	char		name[IFNAMSIZ];
+	char		name[];
 };
 
 #define IDXMAP_SIZE	1024
@@ -90,7 +89,7 @@ int ll_remember_index(const struct sockaddr_nl *who,
 	if (n->nlmsg_type != RTM_NEWLINK && n->nlmsg_type != RTM_DELLINK)
 		return 0;
 
-	if (n->nlmsg_len < NLMSG_LENGTH(sizeof(ifi)))
+	if (n->nlmsg_len < NLMSG_LENGTH(sizeof(*ifi)))
 		return -1;
 
 	im = ll_get_by_index(ifi->ifi_index);
@@ -103,7 +102,6 @@ int ll_remember_index(const struct sockaddr_nl *who,
 		return 0;
 	}
 
-	memset(tb, 0, sizeof(tb));
 	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(n));
 	ifname = rta_getattr_str(tb[IFLA_IFNAME]);
 	if (ifname == NULL)
@@ -121,7 +119,7 @@ int ll_remember_index(const struct sockaddr_nl *who,
 		return 0;
 	}
 
-	im = malloc(sizeof(*im));
+	im = malloc(sizeof(*im) + strlen(ifname) + 1);
 	if (im == NULL)
 		return 0;
 	im->index = ifi->ifi_index;
@@ -138,8 +136,26 @@ int ll_remember_index(const struct sockaddr_nl *who,
 	return 0;
 }
 
-const char *ll_idx_n2a(unsigned idx, char *buf)
+const char *ll_idx_n2a(unsigned int idx)
 {
+	static char buf[IFNAMSIZ];
+
+	snprintf(buf, sizeof(buf), "if%u", idx);
+	return buf;
+}
+
+unsigned int ll_idx_a2n(const char *name)
+{
+	unsigned int idx;
+
+	if (sscanf(name, "if%u", &idx) != 1)
+		return 0;
+	return idx;
+}
+
+const char *ll_index_to_name(unsigned int idx)
+{
+	static char buf[IFNAMSIZ];
 	const struct ll_cache *im;
 
 	if (idx == 0)
@@ -150,16 +166,9 @@ const char *ll_idx_n2a(unsigned idx, char *buf)
 		return im->name;
 
 	if (if_indextoname(idx, buf) == NULL)
-		snprintf(buf, IFNAMSIZ, "if%d", idx);
+		snprintf(buf, IFNAMSIZ, "if%u", idx);
 
 	return buf;
-}
-
-const char *ll_index_to_name(unsigned idx)
-{
-	static char nbuf[IFNAMSIZ];
-
-	return ll_idx_n2a(idx, nbuf);
 }
 
 int ll_index_to_type(unsigned idx)
@@ -198,7 +207,7 @@ unsigned ll_name_to_index(const char *name)
 
 	idx = if_nametoindex(name);
 	if (idx == 0)
-		sscanf(name, "if%u", &idx);
+		idx = ll_idx_a2n(name);
 	return idx;
 }
 

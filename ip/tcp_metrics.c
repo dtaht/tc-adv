@@ -95,9 +95,8 @@ static int process_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
 	struct genlmsghdr *ghdr;
 	struct rtattr *attrs[TCP_METRICS_ATTR_MAX + 1], *a;
 	int len = n->nlmsg_len;
-	char abuf[256];
 	inet_prefix daddr, saddr;
-	int family, i, atype, stype, dlen = 0, slen = 0;
+	int i, atype, stype;
 
 	if (n->nlmsg_type != genl_family)
 		return -1;
@@ -113,67 +112,65 @@ static int process_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
 	parse_rtattr(attrs, TCP_METRICS_ATTR_MAX, (void *) ghdr + GENL_HDRLEN,
 		     len);
 
-	a = attrs[TCP_METRICS_ATTR_ADDR_IPV4];
-	if (a) {
+	if (attrs[TCP_METRICS_ATTR_ADDR_IPV4]) {
 		if (f.daddr.family && f.daddr.family != AF_INET)
 			return 0;
-		memcpy(&daddr.data, RTA_DATA(a), 4);
-		daddr.bytelen = 4;
-		family = AF_INET;
+		a = attrs[TCP_METRICS_ATTR_ADDR_IPV4];
+		daddr.family = AF_INET;
 		atype = TCP_METRICS_ATTR_ADDR_IPV4;
-		dlen = RTA_PAYLOAD(a);
-	} else {
-		a = attrs[TCP_METRICS_ATTR_ADDR_IPV6];
-		if (a) {
-			if (f.daddr.family && f.daddr.family != AF_INET6)
-				return 0;
-			memcpy(&daddr.data, RTA_DATA(a), 16);
-			daddr.bytelen = 16;
-			family = AF_INET6;
-			atype = TCP_METRICS_ATTR_ADDR_IPV6;
-			dlen = RTA_PAYLOAD(a);
-		} else
+	} else if (attrs[TCP_METRICS_ATTR_ADDR_IPV6]) {
+		if (f.daddr.family && f.daddr.family != AF_INET6)
 			return 0;
+		a = attrs[TCP_METRICS_ATTR_ADDR_IPV6];
+		daddr.family = AF_INET6;
+		atype = TCP_METRICS_ATTR_ADDR_IPV6;
+	} else {
+		return 0;
 	}
 
-	a = attrs[TCP_METRICS_ATTR_SADDR_IPV4];
-	if (a) {
-		if (f.saddr.family && f.saddr.family != AF_INET)
-			return 0;
-		memcpy(&saddr.data, RTA_DATA(a), 4);
-		saddr.bytelen = 4;
-		stype = TCP_METRICS_ATTR_SADDR_IPV4;
-		slen = RTA_PAYLOAD(a);
-	} else {
-		a = attrs[TCP_METRICS_ATTR_SADDR_IPV6];
-		if (a) {
-			if (f.saddr.family && f.saddr.family != AF_INET6)
-				return 0;
-			memcpy(&saddr.data, RTA_DATA(a), 16);
-			saddr.bytelen = 16;
-			stype = TCP_METRICS_ATTR_SADDR_IPV6;
-			slen = RTA_PAYLOAD(a);
-		}
-	}
+	if (get_addr_rta(&daddr, a, daddr.family))
+		return 0;
 
 	if (f.daddr.family && f.daddr.bitlen >= 0 &&
 	    inet_addr_match(&daddr, &f.daddr, f.daddr.bitlen))
-	       return 0;
-	/* Only check for the source-address if the kernel supports it,
-	 * meaning slen != 0.
-	 */
-	if (slen && f.saddr.family && f.saddr.bitlen >= 0 &&
-	    inet_addr_match(&saddr, &f.saddr, f.saddr.bitlen))
 		return 0;
+
+	if (attrs[TCP_METRICS_ATTR_SADDR_IPV4]) {
+		if (f.saddr.family && f.saddr.family != AF_INET)
+			return 0;
+		a = attrs[TCP_METRICS_ATTR_SADDR_IPV4];
+		saddr.family = AF_INET;
+		stype = TCP_METRICS_ATTR_SADDR_IPV4;
+	} else if (attrs[TCP_METRICS_ATTR_SADDR_IPV6]) {
+		if (f.saddr.family && f.saddr.family != AF_INET6)
+			return 0;
+		a = attrs[TCP_METRICS_ATTR_SADDR_IPV6];
+		saddr.family = AF_INET6;
+		stype = TCP_METRICS_ATTR_SADDR_IPV6;
+	} else {
+		saddr.family = AF_UNSPEC;
+		stype = 0;
+	}
+
+	/* Only get/check for the source-address if the kernel supports it. */
+	if (saddr.family) {
+		if (get_addr_rta(&saddr, a, saddr.family))
+			return 0;
+
+		if (f.saddr.family && f.saddr.bitlen >= 0 &&
+		    inet_addr_match(&saddr, &f.saddr, f.saddr.bitlen))
+			return 0;
+	}
 
 	if (f.flushb) {
 		struct nlmsghdr *fn;
+
 		TCPM_REQUEST(req2, 128, TCP_METRICS_CMD_DEL, NLM_F_REQUEST);
 
-		addattr_l(&req2.n, sizeof(req2), atype, &daddr.data,
+		addattr_l(&req2.n, sizeof(req2), atype, daddr.data,
 			  daddr.bytelen);
-		if (slen)
-			addattr_l(&req2.n, sizeof(req2), stype, &saddr.data,
+		if (saddr.family)
+			addattr_l(&req2.n, sizeof(req2), stype, saddr.data,
 				  saddr.bytelen);
 
 		if (NLMSG_ALIGN(f.flushp) + req2.n.nlmsg_len > f.flushe) {
@@ -193,7 +190,7 @@ static int process_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
 		fprintf(fp, "Deleted ");
 
 	fprintf(fp, "%s",
-		format_host(family, dlen, &daddr.data, abuf, sizeof(abuf)));
+		format_host(daddr.family, daddr.bytelen, daddr.data));
 
 	a = attrs[TCP_METRICS_ATTR_AGE];
 	if (a) {
@@ -295,10 +292,9 @@ static int process_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
 		fprintf(fp, " fo_cookie %s", cookie);
 	}
 
-	if (slen) {
+	if (saddr.family) {
 		fprintf(fp, " source %s",
-			format_host(family, slen, &saddr.data, abuf,
-				    sizeof(abuf)));
+			format_host(saddr.family, saddr.bytelen, saddr.data));
 	}
 
 	fprintf(fp, "\n");
@@ -310,6 +306,7 @@ static int process_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
 static int tcpm_do_cmd(int cmd, int argc, char **argv)
 {
 	TCPM_REQUEST(req, 1024, TCP_METRICS_CMD_GET, NLM_F_REQUEST);
+	struct nlmsghdr *answer;
 	int atype = -1, stype = -1;
 	int ack;
 
@@ -333,6 +330,7 @@ static int tcpm_do_cmd(int cmd, int argc, char **argv)
 		if (strcmp(*argv, "src") == 0 ||
 		    strcmp(*argv, "source") == 0) {
 			char *who = *argv;
+
 			NEXT_ARG();
 			if (matches(*argv, "help") == 0)
 				usage();
@@ -354,6 +352,7 @@ static int tcpm_do_cmd(int cmd, int argc, char **argv)
 			}
 		} else {
 			char *who = "address";
+
 			if (strcmp(*argv, "addr") == 0 ||
 			    strcmp(*argv, "address") == 0) {
 				who = *argv;
@@ -400,17 +399,9 @@ static int tcpm_do_cmd(int cmd, int argc, char **argv)
 		ack = 0;
 	}
 
-	if (genl_family < 0) {
-		if (rtnl_open_byproto(&grth, 0, NETLINK_GENERIC) < 0) {
-			fprintf(stderr, "Cannot open generic netlink socket\n");
-			exit(1);
-		}
-		genl_family = genl_resolve_family(&grth,
-						  TCP_METRICS_GENL_NAME);
-		if (genl_family < 0)
-			exit(1);
-		req.n.nlmsg_type = genl_family;
-	}
+	if (genl_init_handle(&grth, TCP_METRICS_GENL_NAME, &genl_family))
+		exit(1);
+	req.n.nlmsg_type = genl_family;
 
 	if (!(cmd & CMD_FLUSH) && (atype >= 0 || (cmd & CMD_DEL))) {
 		if (ack)
@@ -467,15 +458,16 @@ static int tcpm_do_cmd(int cmd, int argc, char **argv)
 	}
 
 	if (ack) {
-		if (rtnl_talk(&grth, &req.n, NULL, 0) < 0)
+		if (rtnl_talk(&grth, &req.n, NULL) < 0)
 			return -2;
 	} else if (atype >= 0) {
-		if (rtnl_talk(&grth, &req.n, &req.n, sizeof(req)) < 0)
+		if (rtnl_talk(&grth, &req.n, &answer) < 0)
 			return -2;
-		if (process_msg(NULL, &req.n, stdout) < 0) {
+		if (process_msg(NULL, answer, stdout) < 0) {
 			fprintf(stderr, "Dump terminated\n");
 			exit(1);
 		}
+		free(answer);
 	} else {
 		req.n.nlmsg_seq = grth.dump = ++grth.seq;
 		if (rtnl_send(&grth, &req, req.n.nlmsg_len) < 0) {
@@ -504,8 +496,7 @@ int do_tcp_metrics(int argc, char **argv)
 	if (matches(argv[0], "help") == 0)
 		usage();
 
-	fprintf(stderr, "Command \"%s\" is unknown, "
-			"try \"ip tcp_metrics help\".\n", *argv);
+	fprintf(stderr, "Command \"%s\" is unknown, try \"ip tcp_metrics help\".\n",
+			*argv);
 	exit(-1);
 }
-

@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -41,9 +40,9 @@ static void explain(void)
 }
 
 static int multiq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			    struct nlmsghdr *n)
+			    struct nlmsghdr *n, const char *dev)
 {
-	struct tc_multiq_qopt opt;
+	struct tc_multiq_qopt opt = {};
 
 	if (argc) {
 		if (strcmp(*argv, "help") == 0) {
@@ -77,7 +76,7 @@ static int multiq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 }
 
 struct qdisc_util multiq_qdisc_util = {
-	.id	 	= "multiq",
+	.id		= "multiq",
 	.parse_qopt	= multiq_parse_opt,
 	.print_qopt	= multiq_print_opt,
 };

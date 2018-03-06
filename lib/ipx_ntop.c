@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -68,5 +69,3 @@ const char *ipx_ntop(int af, const void *addr, char *str, size_t len)
 
 	return NULL;
 }
-
-

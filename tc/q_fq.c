@@ -1,7 +1,7 @@
 /*
  * Fair Queue
  *
- *  Copyright (C) 2013 Eric Dumazet <edumazet@google.com>
+ *  Copyright (C) 2013-2015 Eric Dumazet <edumazet@google.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -54,7 +53,9 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... fq [ limit PACKETS ] [ flow_limit PACKETS ]\n");
 	fprintf(stderr, "              [ quantum BYTES ] [ initial_quantum BYTES ]\n");
 	fprintf(stderr, "              [ maxrate RATE  ] [ buckets NUMBER ]\n");
-	fprintf(stderr, "              [ [no]pacing ]\n");
+	fprintf(stderr, "              [ [no]pacing ] [ refill_delay TIME ]\n");
+	fprintf(stderr, "              [ low_rate_threshold RATE ]\n");
+	fprintf(stderr, "              [ orphan_mask MASK]\n");
 }
 
 static unsigned int ilog2(unsigned int val)
@@ -70,7 +71,7 @@ static unsigned int ilog2(unsigned int val)
 }
 
 static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			struct nlmsghdr *n)
+			struct nlmsghdr *n, const char *dev)
 {
 	unsigned int plimit;
 	unsigned int flow_plimit;
@@ -78,13 +79,19 @@ static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned int initial_quantum;
 	unsigned int buckets = 0;
 	unsigned int maxrate;
+	unsigned int low_rate_threshold;
 	unsigned int defrate;
+	unsigned int refill_delay;
+	unsigned int orphan_mask;
 	bool set_plimit = false;
 	bool set_flow_plimit = false;
 	bool set_quantum = false;
 	bool set_initial_quantum = false;
 	bool set_maxrate = false;
 	bool set_defrate = false;
+	bool set_refill_delay = false;
+	bool set_orphan_mask = false;
+	bool set_low_rate_threshold = false;
 	int pacing = -1;
 	struct rtattr *tail;
 
@@ -111,14 +118,31 @@ static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			}
 		} else if (strcmp(*argv, "maxrate") == 0) {
 			NEXT_ARG();
-			if (get_rate(&maxrate, *argv)) {
+			if (strchr(*argv, '%')) {
+				if (get_percent_rate(&maxrate, *argv, dev)) {
+					fprintf(stderr, "Illegal \"maxrate\"\n");
+					return -1;
+				}
+			} else if (get_rate(&maxrate, *argv)) {
 				fprintf(stderr, "Illegal \"maxrate\"\n");
 				return -1;
 			}
 			set_maxrate = true;
+		} else if (strcmp(*argv, "low_rate_threshold") == 0) {
+			NEXT_ARG();
+			if (get_rate(&low_rate_threshold, *argv)) {
+				fprintf(stderr, "Illegal \"low_rate_threshold\"\n");
+				return -1;
+			}
+			set_low_rate_threshold = true;
 		} else if (strcmp(*argv, "defrate") == 0) {
 			NEXT_ARG();
-			if (get_rate(&defrate, *argv)) {
+			if (strchr(*argv, '%')) {
+				if (get_percent_rate(&defrate, *argv, dev)) {
+					fprintf(stderr, "Illegal \"defrate\"\n");
+					return -1;
+				}
+			} else if (get_rate(&defrate, *argv)) {
 				fprintf(stderr, "Illegal \"defrate\"\n");
 				return -1;
 			}
@@ -137,6 +161,20 @@ static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			set_initial_quantum = true;
+		} else if (strcmp(*argv, "orphan_mask") == 0) {
+			NEXT_ARG();
+			if (get_unsigned(&orphan_mask, *argv, 0)) {
+				fprintf(stderr, "Illegal \"initial_quantum\"\n");
+				return -1;
+			}
+			set_orphan_mask = true;
+		} else if (strcmp(*argv, "refill_delay") == 0) {
+			NEXT_ARG();
+			if (get_time(&refill_delay, *argv)) {
+				fprintf(stderr, "Illegal \"refill_delay\"\n");
+				return -1;
+			}
+			set_refill_delay = true;
 		} else if (strcmp(*argv, "pacing") == 0) {
 			pacing = 1;
 		} else if (strcmp(*argv, "nopacing") == 0) {
@@ -152,8 +190,7 @@ static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		argc--; argv++;
 	}
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	if (buckets) {
 		unsigned int log = ilog2(buckets);
 
@@ -177,10 +214,19 @@ static int fq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (set_maxrate)
 		addattr_l(n, 1024, TCA_FQ_FLOW_MAX_RATE,
 			  &maxrate, sizeof(maxrate));
+	if (set_low_rate_threshold)
+		addattr_l(n, 1024, TCA_FQ_LOW_RATE_THRESHOLD,
+			  &low_rate_threshold, sizeof(low_rate_threshold));
 	if (set_defrate)
 		addattr_l(n, 1024, TCA_FQ_FLOW_DEFAULT_RATE,
 			  &defrate, sizeof(defrate));
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	if (set_refill_delay)
+		addattr_l(n, 1024, TCA_FQ_FLOW_REFILL_DELAY,
+			  &refill_delay, sizeof(refill_delay));
+	if (set_orphan_mask)
+		addattr_l(n, 1024, TCA_FQ_ORPHAN_MASK,
+			  &orphan_mask, sizeof(refill_delay));
+	addattr_nest_end(n, tail);
 	return 0;
 }
 
@@ -191,6 +237,9 @@ static int fq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned int buckets_log;
 	int pacing;
 	unsigned int rate, quantum;
+	unsigned int refill_delay;
+	unsigned int orphan_mask;
+
 	SPRINT_BUF(b1);
 
 	if (opt == NULL)
@@ -212,6 +261,11 @@ static int fq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_FQ_BUCKETS_LOG]) >= sizeof(__u32)) {
 		buckets_log = rta_getattr_u32(tb[TCA_FQ_BUCKETS_LOG]);
 		fprintf(f, "buckets %u ", 1U << buckets_log);
+	}
+	if (tb[TCA_FQ_ORPHAN_MASK] &&
+	    RTA_PAYLOAD(tb[TCA_FQ_ORPHAN_MASK]) >= sizeof(__u32)) {
+		orphan_mask = rta_getattr_u32(tb[TCA_FQ_ORPHAN_MASK]);
+		fprintf(f, "orphan_mask %u ", orphan_mask);
 	}
 	if (tb[TCA_FQ_RATE_ENABLE] &&
 	    RTA_PAYLOAD(tb[TCA_FQ_RATE_ENABLE]) >= sizeof(int)) {
@@ -243,6 +297,18 @@ static int fq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		if (rate != 0)
 			fprintf(f, "defrate %s ", sprint_rate(rate, b1));
 	}
+	if (tb[TCA_FQ_LOW_RATE_THRESHOLD] &&
+	    RTA_PAYLOAD(tb[TCA_FQ_LOW_RATE_THRESHOLD]) >= sizeof(__u32)) {
+		rate = rta_getattr_u32(tb[TCA_FQ_LOW_RATE_THRESHOLD]);
+
+		if (rate != 0)
+			fprintf(f, "low_rate_threshold %s ", sprint_rate(rate, b1));
+	}
+	if (tb[TCA_FQ_FLOW_REFILL_DELAY] &&
+	    RTA_PAYLOAD(tb[TCA_FQ_FLOW_REFILL_DELAY]) >= sizeof(__u32)) {
+		refill_delay = rta_getattr_u32(tb[TCA_FQ_FLOW_REFILL_DELAY]);
+		fprintf(f, "refill_delay %s ", sprint_time(refill_delay, b1));
+	}
 
 	return 0;
 }
@@ -273,6 +339,9 @@ static int fq_print_xstats(struct qdisc_util *qu, FILE *f,
 		fprintf(f, ", %llu retrans", st->tcp_retrans);
 
 	fprintf(f, ", %llu throttled", st->throttled);
+
+	if (st->unthrottle_latency_ns)
+		fprintf(f, ", %u ns latency", st->unthrottle_latency_ns);
 
 	if (st->flows_plimit)
 		fprintf(f, ", %llu flows_plimit", st->flows_plimit);

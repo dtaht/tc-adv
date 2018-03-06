@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -32,20 +31,18 @@ static void explain(void)
 }
 
 static int choke_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			   struct nlmsghdr *n)
+			   struct nlmsghdr *n, const char *dev)
 {
-	struct tc_red_qopt opt;
-	unsigned burst = 0;
-	unsigned avpkt = 1000;
+	struct tc_red_qopt opt = {};
+	unsigned int burst = 0;
+	unsigned int avpkt = 1000;
 	double probability = 0.02;
-	unsigned rate = 0;
+	unsigned int rate = 0;
 	int ecn_ok = 0;
 	int wlog;
 	__u8 sbuf[256];
 	__u32 max_P;
 	struct rtattr *tail;
-
-	memset(&opt, 0, sizeof(opt));
 
 	while (argc > 0) {
 		if (strcmp(*argv, "limit") == 0) {
@@ -56,7 +53,12 @@ static int choke_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			}
 		} else if (strcmp(*argv, "bandwidth") == 0) {
 			NEXT_ARG();
-			if (get_rate(&rate, *argv)) {
+			if (strchr(*argv, '%')) {
+				if (get_percent_rate(&rate, *argv, dev)) {
+					fprintf(stderr, "Illegal \"bandwidth\"\n");
+					return -1;
+				}
+			} else if (get_rate(&rate, *argv)) {
 				fprintf(stderr, "Illegal \"bandwidth\"\n");
 				return -1;
 			}
@@ -154,13 +156,12 @@ static int choke_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (ecn_ok)
 		opt.flags |= TC_RED_ECN;
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	addattr_l(n, 1024, TCA_CHOKE_PARMS, &opt, sizeof(opt));
 	addattr_l(n, 1024, TCA_CHOKE_STAB, sbuf, 256);
 	max_P = probability * pow(2, 32);
 	addattr_l(n, 1024, TCA_CHOKE_MAX_P, &max_P, sizeof(max_P));
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	addattr_nest_end(n, tail);
 	return 0;
 }
 

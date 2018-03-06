@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -25,7 +24,8 @@
 
 
 static int
-parse_icmp(int *argc_p, char ***argv_p,struct tc_pedit_sel *sel,struct tc_pedit_key *tkey)
+parse_icmp(int *argc_p, char ***argv_p,
+	   struct m_pedit_sel *sel, struct m_pedit_key *tkey)
 {
 	int res = -1;
 #if 0
@@ -47,7 +47,7 @@ parse_icmp(int *argc_p, char ***argv_p,struct tc_pedit_sel *sel,struct tc_pedit_
 	}
 	return -1;
 
-      done:
+done:
 	*argc_p = argc;
 	*argv_p = argv;
 #endif

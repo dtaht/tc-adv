@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -25,13 +24,12 @@
 #include "utils.h"
 #include "libnetlink.h"
 
-int resolve_hosts = 0;
 static int init_phase = 1;
 
 static void write_stamp(FILE *fp)
 {
 	char buf[128];
-	struct nlmsghdr *n1 = (void*)buf;
+	struct nlmsghdr *n1 = (void *)buf;
 	struct timeval tv;
 
 	n1->nlmsg_type = NLMSG_TSTAMP;
@@ -40,20 +38,27 @@ static void write_stamp(FILE *fp)
 	n1->nlmsg_pid = 0;
 	n1->nlmsg_len = NLMSG_LENGTH(4*2);
 	gettimeofday(&tv, NULL);
-	((__u32*)NLMSG_DATA(n1))[0] = tv.tv_sec;
-	((__u32*)NLMSG_DATA(n1))[1] = tv.tv_usec;
-	fwrite((void*)n1, 1, NLMSG_ALIGN(n1->nlmsg_len), fp);
+	((__u32 *)NLMSG_DATA(n1))[0] = tv.tv_sec;
+	((__u32 *)NLMSG_DATA(n1))[1] = tv.tv_usec;
+	fwrite((void *)n1, 1, NLMSG_ALIGN(n1->nlmsg_len), fp);
 }
 
-static int dump_msg(const struct sockaddr_nl *who, struct nlmsghdr *n,
-		    void *arg)
+static int dump_msg(const struct sockaddr_nl *who, struct rtnl_ctrl_data *ctrl,
+		    struct nlmsghdr *n, void *arg)
 {
-	FILE *fp = (FILE*)arg;
+	FILE *fp = (FILE *)arg;
+
 	if (!init_phase)
 		write_stamp(fp);
-	fwrite((void*)n, 1, NLMSG_ALIGN(n->nlmsg_len), fp);
+	fwrite((void *)n, 1, NLMSG_ALIGN(n->nlmsg_len), fp);
 	fflush(fp);
 	return 0;
+}
+
+static int dump_msg2(const struct sockaddr_nl *who,
+		     struct nlmsghdr *n, void *arg)
+{
+	return dump_msg(who, NULL, n, arg);
 }
 
 static void usage(void)
@@ -69,7 +74,7 @@ main(int argc, char **argv)
 	FILE *fp;
 	struct rtnl_handle rth;
 	int family = AF_UNSPEC;
-	unsigned groups = ~0U;
+	unsigned int groups = ~0U;
 	int llink = 0;
 	int laddr = 0;
 	int lroute = 0;
@@ -109,13 +114,13 @@ main(int argc, char **argv)
 				usage();
 			file = argv[1];
 		} else if (matches(argv[1], "link") == 0) {
-			llink=1;
+			llink = 1;
 			groups = 0;
 		} else if (matches(argv[1], "address") == 0) {
-			laddr=1;
+			laddr = 1;
 			groups = 0;
 		} else if (matches(argv[1], "route") == 0) {
-			lroute=1;
+			lroute = 1;
 			groups = 0;
 		} else if (strcmp(argv[1], "all") == 0) {
 			groups = ~0U;
@@ -163,14 +168,14 @@ main(int argc, char **argv)
 
 	write_stamp(fp);
 
-	if (rtnl_dump_filter(&rth, dump_msg, fp) < 0) {
+	if (rtnl_dump_filter(&rth, dump_msg2, fp) < 0) {
 		fprintf(stderr, "Dump terminated\n");
 		return 1;
 	}
 
 	init_phase = 0;
 
-	if (rtnl_listen(&rth, dump_msg, (void*)fp) < 0)
+	if (rtnl_listen(&rth, dump_msg, (void *)fp) < 0)
 		exit(2);
 
 	exit(0);

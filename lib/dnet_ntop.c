@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
@@ -98,5 +99,3 @@ const char *dnet_ntop(int af, const void *addr, char *str, size_t len)
 
 	return NULL;
 }
-
-

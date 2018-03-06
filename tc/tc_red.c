@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <math.h>
 #include <sys/socket.h>
@@ -27,21 +26,23 @@
 /*
    Plog = log(prob/(qmax - qmin))
  */
-int tc_red_eval_P(unsigned qmin, unsigned qmax, double prob)
+int tc_red_eval_P(unsigned int qmin, unsigned int qmax, double prob)
 {
 	int i = qmax - qmin;
 
-	if (i <= 0)
+	if (!i)
+		return 0;
+	if (i < 0)
 		return -1;
 
 	prob /= i;
 
-	for (i=0; i<32; i++) {
+	for (i = 0; i < 32; i++) {
 		if (prob > 1.0)
 			break;
 		prob *= 2;
 	}
-	if (i>=32)
+	if (i >= 32)
 		return -1;
 	return i;
 }
@@ -50,18 +51,18 @@ int tc_red_eval_P(unsigned qmin, unsigned qmax, double prob)
    burst + 1 - qmin/avpkt < (1-(1-W)^burst)/W
  */
 
-int tc_red_eval_ewma(unsigned qmin, unsigned burst, unsigned avpkt)
+int tc_red_eval_ewma(unsigned int qmin, unsigned int burst, unsigned int avpkt)
 {
 	int wlog = 1;
 	double W = 0.5;
 	double a = (double)burst + 1 - (double)qmin/avpkt;
 
 	if (a < 1.0) {
-		fprintf(stderr, "tc_red_eval_ewma() burst %u is too small ?"
-				" Try burst %u\n", burst, 1 + qmin/avpkt);
+		fprintf(stderr, "tc_red_eval_ewma() burst %u is too small ? Try burst %u\n",
+				burst, 1 + qmin/avpkt);
 		return -1;
 	}
-	for (wlog=1; wlog<32; wlog++, W /= 2) {
+	for (wlog = 1; wlog < 32; wlog++, W /= 2) {
 		if (a <= (1 - pow(1-W, burst))/W)
 			return wlog;
 	}
@@ -72,7 +73,7 @@ int tc_red_eval_ewma(unsigned qmin, unsigned burst, unsigned avpkt)
    Stab[t>>Scell_log] = -log(1-W) * t/xmit_time
  */
 
-int tc_red_eval_idle_damping(int Wlog, unsigned avpkt, unsigned bps, __u8 *sbuf)
+int tc_red_eval_idle_damping(int Wlog, unsigned int avpkt, unsigned int bps, __u8 *sbuf)
 {
 	double xmit_time = tc_calc_xmittime(bps, avpkt);
 	double lW = -log(1.0 - 1.0/(1<<Wlog))/xmit_time;
@@ -80,7 +81,7 @@ int tc_red_eval_idle_damping(int Wlog, unsigned avpkt, unsigned bps, __u8 *sbuf)
 	int clog;
 	int i;
 
-	for (clog=0; clog<32; clog++) {
+	for (clog = 0; clog < 32; clog++) {
 		if (maxtime/(1<<clog) < 512)
 			break;
 	}
@@ -88,7 +89,7 @@ int tc_red_eval_idle_damping(int Wlog, unsigned avpkt, unsigned bps, __u8 *sbuf)
 		return -1;
 
 	sbuf[0] = 0;
-	for (i=1; i<255; i++) {
+	for (i = 1; i < 255; i++) {
 		sbuf[i] = (i<<clog)*lW;
 		if (sbuf[i] > 31)
 			sbuf[i] = 31;

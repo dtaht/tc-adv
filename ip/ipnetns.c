@@ -1,10 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #define _ATFILE_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/inotify.h>
 #include <sys/mount.h>
-#include <sys/param.h>
 #include <sys/syscall.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,7 +19,7 @@
 #include <linux/net_namespace.h>
 
 #include "utils.h"
-#include "hlist.h"
+#include "list.h"
 #include "ip_common.h"
 #include "namespace.h"
 
@@ -43,6 +43,7 @@ static struct rtnl_handle rtnsh = { .fd = -1 };
 static int have_rtnl_getnsid = -1;
 
 static int ipnetns_accept_msg(const struct sockaddr_nl *who,
+			      struct rtnl_ctrl_data *ctrl,
 			      struct nlmsghdr *n, void *arg)
 {
 	struct nlmsgerr *err = (struct nlmsgerr *)NLMSG_DATA(n);
@@ -61,20 +62,19 @@ static int ipnetns_have_nsid(void)
 		struct nlmsghdr n;
 		struct rtgenmsg g;
 		char            buf[1024];
-	} req;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST,
+		.n.nlmsg_type = RTM_GETNSID,
+		.g.rtgen_family = AF_UNSPEC,
+	};
 	int fd;
 
 	if (have_rtnl_getnsid < 0) {
-		memset(&req, 0, sizeof(req));
-		req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
-		req.n.nlmsg_flags = NLM_F_REQUEST;
-		req.n.nlmsg_type = RTM_GETNSID;
-		req.g.rtgen_family = AF_UNSPEC;
-
 		fd = open("/proc/self/ns/net", O_RDONLY);
 		if (fd < 0) {
-			perror("open(\"/proc/self/ns/net\")");
-			exit(1);
+			have_rtnl_getnsid = 0;
+			return 0;
 		}
 
 		addattr32(&req.n, 1024, NETNSA_FD, fd);
@@ -96,42 +96,46 @@ static int get_netnsid_from_name(const char *name)
 		struct nlmsghdr n;
 		struct rtgenmsg g;
 		char            buf[1024];
-	} req, answer;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST,
+		.n.nlmsg_type = RTM_GETNSID,
+		.g.rtgen_family = AF_UNSPEC,
+	};
+	struct nlmsghdr *answer;
 	struct rtattr *tb[NETNSA_MAX + 1];
 	struct rtgenmsg *rthdr;
 	int len, fd;
-
-	memset(&req, 0, sizeof(req));
-	req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
-	req.n.nlmsg_flags = NLM_F_REQUEST;
-	req.n.nlmsg_type = RTM_GETNSID;
-	req.g.rtgen_family = AF_UNSPEC;
 
 	fd = netns_get_fd(name);
 	if (fd < 0)
 		return fd;
 
 	addattr32(&req.n, 1024, NETNSA_FD, fd);
-	if (rtnl_talk(&rtnsh, &req.n, &answer.n, sizeof(answer)) < 0) {
+	if (rtnl_talk(&rtnsh, &req.n, &answer) < 0) {
 		close(fd);
 		return -2;
 	}
 	close(fd);
 
 	/* Validate message and parse attributes */
-	if (answer.n.nlmsg_type == NLMSG_ERROR)
-		return -1;
+	if (answer->nlmsg_type == NLMSG_ERROR)
+		goto err_out;
 
-	rthdr = NLMSG_DATA(&answer.n);
-	len = answer.n.nlmsg_len - NLMSG_SPACE(sizeof(*rthdr));
+	rthdr = NLMSG_DATA(answer);
+	len = answer->nlmsg_len - NLMSG_SPACE(sizeof(*rthdr));
 	if (len < 0)
-		return -1;
+		goto err_out;
 
 	parse_rtattr(tb, NETNSA_MAX, NETNS_RTA(rthdr), len);
 
-	if (tb[NETNSA_NSID])
+	if (tb[NETNSA_NSID]) {
+		free(answer);
 		return rta_getattr_u32(tb[NETNSA_NSID]);
+	}
 
+err_out:
+	free(answer);
 	return -1;
 }
 
@@ -139,7 +143,7 @@ struct nsid_cache {
 	struct hlist_node	nsid_hash;
 	struct hlist_node	name_hash;
 	int			nsid;
-	char			name[NAME_MAX];
+	char			name[0];
 };
 
 #define NSIDMAP_SIZE		128
@@ -164,7 +168,7 @@ static struct nsid_cache *netns_map_get_by_nsid(int nsid)
 	return NULL;
 }
 
-static int netns_map_add(int nsid, char *name)
+static int netns_map_add(int nsid, const char *name)
 {
 	struct nsid_cache *c;
 	uint32_t h;
@@ -172,7 +176,7 @@ static int netns_map_add(int nsid, char *name)
 	if (netns_map_get_by_nsid(nsid) != NULL)
 		return -EEXIST;
 
-	c = malloc(sizeof(*c));
+	c = malloc(sizeof(*c) + strlen(name) + 1);
 	if (c == NULL) {
 		perror("malloc");
 		return -ENOMEM;
@@ -196,6 +200,18 @@ static void netns_map_del(struct nsid_cache *c)
 	free(c);
 }
 
+void netns_nsid_socket_init(void)
+{
+	if (rtnsh.fd > -1 || !ipnetns_have_nsid())
+		return;
+
+	if (rtnl_open(&rtnsh, 0) < 0) {
+		fprintf(stderr, "Cannot open rtnetlink\n");
+		exit(1);
+	}
+
+}
+
 void netns_map_init(void)
 {
 	static int initialized;
@@ -205,11 +221,6 @@ void netns_map_init(void)
 
 	if (initialized || !ipnetns_have_nsid())
 		return;
-
-	if (rtnl_open(&rtnsh, 0) < 0) {
-		fprintf(stderr, "Cannot open rtnetlink\n");
-		exit(1);
-	}
 
 	dir = opendir(NETNS_RUN_DIR);
 	if (!dir)
@@ -352,43 +363,10 @@ static int netns_list(int argc, char **argv)
 	return 0;
 }
 
-static int cmd_exec(const char *cmd, char **argv, bool do_fork)
-{
-	fflush(stdout);
-	if (do_fork) {
-		int status;
-		pid_t pid;
-
-		pid = fork();
-		if (pid < 0) {
-			perror("fork");
-			exit(1);
-		}
-
-		if (pid != 0) {
-			/* Parent  */
-			if (waitpid(pid, &status, 0) < 0) {
-				perror("waitpid");
-				exit(1);
-			}
-
-			if (WIFEXITED(status)) {
-				return WEXITSTATUS(status);
-			}
-
-			exit(1);
-		}
-	}
-
-	if (execvp(cmd, argv)  < 0)
-		fprintf(stderr, "exec of \"%s\" failed: %s\n",
-				cmd, strerror(errno));
-	_exit(1);
-}
-
 static int on_netns_exec(char *nsname, void *arg)
 {
 	char **argv = arg;
+
 	cmd_exec(argv[1], argv + 1, true);
 	return 0;
 }
@@ -415,6 +393,11 @@ static int netns_exec(int argc, char **argv)
 	if (netns_switch(argv[0]))
 		return -1;
 
+	/* we just changed namespaces. clear any vrf association
+	 * with prior namespace before exec'ing command
+	 */
+	vrf_reset();
+
 	/* ip must return the status of the child,
 	 * but do_cmd() will add a minus to this,
 	 * so let's add another one here to cancel it.
@@ -426,6 +409,7 @@ static int netns_exec(int argc, char **argv)
 static int is_pid(const char *str)
 {
 	int ch;
+
 	for (; (ch = *str); str++) {
 		if (!isdigit(ch))
 			return 0;
@@ -436,7 +420,7 @@ static int is_pid(const char *str)
 static int netns_pids(int argc, char **argv)
 {
 	const char *name;
-	char net_path[MAXPATHLEN];
+	char net_path[PATH_MAX];
 	int netns;
 	struct stat netst;
 	DIR *dir;
@@ -470,9 +454,10 @@ static int netns_pids(int argc, char **argv)
 			strerror(errno));
 		return -1;
 	}
-	while((entry = readdir(dir))) {
-		char pid_net_path[MAXPATHLEN];
+	while ((entry = readdir(dir))) {
+		char pid_net_path[PATH_MAX];
 		struct stat st;
+
 		if (!is_pid(entry->d_name))
 			continue;
 		snprintf(pid_net_path, sizeof(pid_net_path), "/proc/%s/ns/net",
@@ -489,28 +474,15 @@ static int netns_pids(int argc, char **argv)
 
 }
 
-static int netns_identify(int argc, char **argv)
+int netns_identify_pid(const char *pidstr, char *name, int len)
 {
-	const char *pidstr;
-	char net_path[MAXPATHLEN];
+	char net_path[PATH_MAX];
 	int netns;
 	struct stat netst;
 	DIR *dir;
 	struct dirent *entry;
 
-	if (argc < 1) {
-		pidstr = "self";
-	} else if (argc > 1) {
-		fprintf(stderr, "extra arguments specified\n");
-		return -1;
-	} else {
-		pidstr = argv[0];
-		if (!is_pid(pidstr)) {
-			fprintf(stderr, "Specified string '%s' is not a pid\n",
-					pidstr);
-			return -1;
-		}
-	}
+	name[0] = '\0';
 
 	snprintf(net_path, sizeof(net_path), "/proc/%s/ns/net", pidstr);
 	netns = open(net_path, O_RDONLY);
@@ -535,8 +507,8 @@ static int netns_identify(int argc, char **argv)
 		return -1;
 	}
 
-	while((entry = readdir(dir))) {
-		char name_path[MAXPATHLEN];
+	while ((entry = readdir(dir))) {
+		char name_path[PATH_MAX];
 		struct stat st;
 
 		if (strcmp(entry->d_name, ".") == 0)
@@ -552,7 +524,7 @@ static int netns_identify(int argc, char **argv)
 
 		if ((st.st_dev == netst.st_dev) &&
 		    (st.st_ino == netst.st_ino)) {
-			printf("%s\n", entry->d_name);
+			strlcpy(name, entry->d_name, len);
 		}
 	}
 	closedir(dir);
@@ -560,9 +532,36 @@ static int netns_identify(int argc, char **argv)
 
 }
 
+static int netns_identify(int argc, char **argv)
+{
+	const char *pidstr;
+	char name[256];
+	int rc;
+
+	if (argc < 1) {
+		pidstr = "self";
+	} else if (argc > 1) {
+		fprintf(stderr, "extra arguments specified\n");
+		return -1;
+	} else {
+		pidstr = argv[0];
+		if (!is_pid(pidstr)) {
+			fprintf(stderr, "Specified string '%s' is not a pid\n",
+					pidstr);
+			return -1;
+		}
+	}
+
+	rc = netns_identify_pid(pidstr, name, sizeof(name));
+	if (!rc)
+		printf("%s\n", name);
+
+	return rc;
+}
+
 static int on_netns_del(char *nsname, void *arg)
 {
-	char netns_path[MAXPATHLEN];
+	char netns_path[PATH_MAX];
 
 	snprintf(netns_path, sizeof(netns_path), "%s/%s", NETNS_RUN_DIR, nsname);
 	umount2(netns_path, MNT_DETACH);
@@ -611,7 +610,7 @@ static int netns_add(int argc, char **argv)
 	 * userspace tweaks like remounting /sys, or bind mounting
 	 * a new /etc/resolv.conf can be shared between uers.
 	 */
-	char netns_path[MAXPATHLEN];
+	char netns_path[PATH_MAX];
 	const char *name;
 	int fd;
 	int made_netns_run_dir_mount = 0;
@@ -642,7 +641,7 @@ static int netns_add(int argc, char **argv)
 		}
 
 		/* Upgrade NETNS_RUN_DIR to a mount point */
-		if (mount(NETNS_RUN_DIR, NETNS_RUN_DIR, "none", MS_BIND, NULL)) {
+		if (mount(NETNS_RUN_DIR, NETNS_RUN_DIR, "none", MS_BIND | MS_REC, NULL)) {
 			fprintf(stderr, "mount --bind %s %s failed: %s\n",
 				NETNS_RUN_DIR, NETNS_RUN_DIR, strerror(errno));
 			return -1;
@@ -682,14 +681,13 @@ static int set_netnsid_from_name(const char *name, int nsid)
 		struct nlmsghdr n;
 		struct rtgenmsg g;
 		char            buf[1024];
-	} req;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST,
+		.n.nlmsg_type = RTM_NEWNSID,
+		.g.rtgen_family = AF_UNSPEC,
+	};
 	int fd, err = 0;
-
-	memset(&req, 0, sizeof(req));
-	req.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
-	req.n.nlmsg_flags = NLM_F_REQUEST;
-	req.n.nlmsg_type = RTM_NEWNSID;
-	req.g.rtgen_family = AF_UNSPEC;
 
 	fd = netns_get_fd(name);
 	if (fd < 0)
@@ -697,7 +695,7 @@ static int set_netnsid_from_name(const char *name, int nsid)
 
 	addattr32(&req.n, 1024, NETNSA_FD, fd);
 	addattr32(&req.n, 1024, NETNSA_NSID, nsid);
-	if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
+	if (rtnl_talk(&rth, &req.n, NULL) < 0)
 		err = -2;
 
 	close(fd);
@@ -706,9 +704,10 @@ static int set_netnsid_from_name(const char *name, int nsid)
 
 static int netns_set(int argc, char **argv)
 {
-	char netns_path[MAXPATHLEN];
+	char netns_path[PATH_MAX];
 	const char *name;
-	int netns, nsid;
+	unsigned int nsid;
+	int netns;
 
 	if (argc < 1) {
 		fprintf(stderr, "No netns name specified\n");
@@ -719,7 +718,11 @@ static int netns_set(int argc, char **argv)
 		return -1;
 	}
 	name = argv[0];
-	nsid = atoi(argv[1]);
+	/* If a negative nsid is specified the kernel will select the nsid. */
+	if (strcmp(argv[1], "auto") == 0)
+		nsid = -1;
+	else if (get_unsigned(&nsid, argv[1], 0))
+		invarg("Invalid \"netnsid\" value\n", argv[1]);
 
 	snprintf(netns_path, sizeof(netns_path), "%s/%s", NETNS_RUN_DIR, name);
 	netns = open(netns_path, O_RDONLY | O_CLOEXEC);
@@ -737,6 +740,7 @@ static int netns_monitor(int argc, char **argv)
 	char buf[4096];
 	struct inotify_event *event;
 	int fd;
+
 	fd = inotify_init();
 	if (fd < 0) {
 		fprintf(stderr, "inotify_init failed: %s\n",
@@ -752,8 +756,9 @@ static int netns_monitor(int argc, char **argv)
 			strerror(errno));
 		return -1;
 	}
-	for(;;) {
+	for (;;) {
 		ssize_t len = read(fd, buf, sizeof(buf));
+
 		if (len < 0) {
 			fprintf(stderr, "read failed: %s\n",
 				strerror(errno));
@@ -771,19 +776,36 @@ static int netns_monitor(int argc, char **argv)
 	return 0;
 }
 
+static int invalid_name(const char *name)
+{
+	return !*name || strlen(name) > NAME_MAX ||
+		strchr(name, '/') || !strcmp(name, ".") || !strcmp(name, "..");
+}
+
 int do_netns(int argc, char **argv)
 {
-	netns_map_init();
+	netns_nsid_socket_init();
 
-	if (argc < 1)
+	if (argc < 1) {
+		netns_map_init();
 		return netns_list(0, NULL);
+	}
+
+	if (argc > 1 && invalid_name(argv[1])) {
+		fprintf(stderr, "Invalid netns name \"%s\"\n", argv[1]);
+		exit(-1);
+	}
 
 	if ((matches(*argv, "list") == 0) || (matches(*argv, "show") == 0) ||
-	    (matches(*argv, "lst") == 0))
+	    (matches(*argv, "lst") == 0)) {
+		netns_map_init();
 		return netns_list(argc-1, argv+1);
+	}
 
-	if ((matches(*argv, "list-id") == 0))
+	if ((matches(*argv, "list-id") == 0)) {
+		netns_map_init();
 		return netns_list_id(argc-1, argv+1);
+	}
 
 	if (matches(*argv, "help") == 0)
 		return usage();

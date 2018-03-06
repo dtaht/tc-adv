@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -49,18 +48,17 @@ static int get_prob(__u32 *val, const char *arg)
 }
 
 static int sfb_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			 struct nlmsghdr *n)
+			 struct nlmsghdr *n, const char *dev)
 {
-	struct tc_sfb_qopt opt;
+	struct tc_sfb_qopt opt = {
+		.rehash_interval = 600*1000,
+		.warmup_time = 60*1000,
+		.penalty_rate = 10,
+		.penalty_burst = 20,
+		.increment = (SFB_MAX_PROB + 1000) / 2000,
+		.decrement = (SFB_MAX_PROB + 10000) / 20000,
+	};
 	struct rtattr *tail;
-
-	memset(&opt, 0, sizeof(opt));
-	opt.rehash_interval = 600*1000;
-	opt.warmup_time = 60*1000;
-	opt.penalty_rate = 10;
-	opt.penalty_burst = 20;
-	opt.increment = (SFB_MAX_PROB + 1000) / 2000;
-	opt.decrement = (SFB_MAX_PROB + 10000) / 20000;
 
 	while (argc > 0) {
 	    if (strcmp(*argv, "rehash") == 0) {
@@ -134,10 +132,9 @@ static int sfb_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (opt.bin_size == 0)
 		opt.bin_size = (opt.max * 4 + 3) / 5;
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	addattr_l(n, 1024, TCA_SFB_PARMS, &opt, sizeof(opt));
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	addattr_nest_end(n, tail);
 	return 0;
 }
 
@@ -158,8 +155,7 @@ static int sfb_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	fprintf(f,
 		"limit %d max %d target %d\n"
-		"  increment %.5f decrement %.5f penalty rate %d burst %d "
-		"(%ums %ums)",
+		"  increment %.5f decrement %.5f penalty rate %d burst %d (%ums %ums)",
 		qopt->limit, qopt->max, qopt->bin_size,
 		(double)qopt->increment / SFB_MAX_PROB,
 		(double)qopt->decrement / SFB_MAX_PROB,

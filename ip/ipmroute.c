@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <sys/ioctl.h>
@@ -44,8 +43,7 @@ static void usage(void)
 	exit(-1);
 }
 
-struct rtfilter
-{
+struct rtfilter {
 	int tb;
 	int af;
 	int iif;
@@ -55,12 +53,12 @@ struct rtfilter
 
 int print_mroute(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 {
-	FILE *fp = (FILE*)arg;
+	FILE *fp = (FILE *)arg;
 	struct rtmsg *r = NLMSG_DATA(n);
 	int len = n->nlmsg_len;
-	struct rtattr * tb[RTA_MAX+1];
-	char abuf[256];
+	struct rtattr *tb[RTA_MAX+1];
 	char obuf[256];
+
 	SPRINT_BUF(b1);
 	__u32 table;
 	int iif = 0;
@@ -90,42 +88,32 @@ int print_mroute(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 		return 0;
 
 	if (tb[RTA_IIF])
-		iif = *(int*)RTA_DATA(tb[RTA_IIF]);
+		iif = rta_getattr_u32(tb[RTA_IIF]);
 	if (filter.iif && filter.iif != iif)
 		return 0;
 
 	if (filter.af && filter.af != r->rtm_family)
 		return 0;
 
-	if (tb[RTA_DST] &&
-	    filter.mdst.bitlen > 0 &&
-	    inet_addr_match(RTA_DATA(tb[RTA_DST]), &filter.mdst, filter.mdst.bitlen))
+	if (inet_addr_match_rta(&filter.mdst, tb[RTA_DST]))
 		return 0;
 
-	if (tb[RTA_SRC] &&
-	    filter.msrc.bitlen > 0 &&
-	    inet_addr_match(RTA_DATA(tb[RTA_SRC]), &filter.msrc, filter.msrc.bitlen))
+	if (inet_addr_match_rta(&filter.msrc, tb[RTA_SRC]))
 		return 0;
 
-	family = r->rtm_family == RTNL_FAMILY_IPMR ? AF_INET : AF_INET6;
+	family = get_real_family(r->rtm_type, r->rtm_family);
 
 	if (n->nlmsg_type == RTM_DELROUTE)
 		fprintf(fp, "Deleted ");
 
 	if (tb[RTA_SRC])
 		len = snprintf(obuf, sizeof(obuf),
-			       "(%s, ", rt_addr_n2a(family,
-						    RTA_PAYLOAD(tb[RTA_SRC]),
-						    RTA_DATA(tb[RTA_SRC]),
-						    abuf, sizeof(abuf)));
+			       "(%s, ", rt_addr_n2a_rta(family, tb[RTA_SRC]));
 	else
 		len = sprintf(obuf, "(unknown, ");
 	if (tb[RTA_DST])
 		snprintf(obuf + len, sizeof(obuf) - len,
-			 "%s)", rt_addr_n2a(family,
-					    RTA_PAYLOAD(tb[RTA_DST]),
-					    RTA_DATA(tb[RTA_DST]),
-					    abuf, sizeof(abuf)));
+			 "%s)", rt_addr_n2a_rta(family, tb[RTA_DST]));
 	else
 		snprintf(obuf + len, sizeof(obuf) - len, "unknown) ");
 
@@ -160,6 +148,10 @@ int print_mroute(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 			nh = RTNH_NEXT(nh);
 		}
 	}
+	fprintf(fp, " State: %s",
+		r->rtm_flags & RTNH_F_UNRESOLVED ? "unresolved" : "resolved");
+	if (r->rtm_flags & RTNH_F_OFFLOAD)
+		fprintf(fp, " offload");
 	if (show_stats && tb[RTA_MFC_STATS]) {
 		struct rta_mfc_stats *mfcs = RTA_DATA(tb[RTA_MFC_STATS]);
 
@@ -170,6 +162,18 @@ int print_mroute(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 			fprintf(fp, ", %"PRIu64" arrived on wrong iif.",
 				(uint64_t)mfcs->mfcs_wrong_if);
 	}
+	if (show_stats && tb[RTA_EXPIRES]) {
+		struct timeval tv;
+
+		__jiffies_to_tv(&tv, rta_getattr_u64(tb[RTA_EXPIRES]));
+		fprintf(fp, ", Age %4i.%.2i", (int)tv.tv_sec,
+			(int)tv.tv_usec/10000);
+	}
+
+	if (table && (table != RT_TABLE_MAIN || show_details > 0) && !filter.tb)
+		fprintf(fp, " Table: %s",
+			rtnl_rttable_n2a(table, b1, sizeof(b1)));
+
 	fprintf(fp, "\n");
 	fflush(fp);
 	return 0;
@@ -199,9 +203,12 @@ static int mroute_list(int argc, char **argv)
 	} else
 		filter.af = RTNL_FAMILY_IP6MR;
 
+	filter.msrc.family = filter.mdst.family = family;
+
 	while (argc > 0) {
 		if (matches(*argv, "table") == 0) {
 			__u32 tid;
+
 			NEXT_ARG();
 			if (rtnl_rttable_a2n(&tid, *argv)) {
 				if (strcmp(*argv, "all") == 0) {
@@ -218,14 +225,16 @@ static int mroute_list(int argc, char **argv)
 			id = *argv;
 		} else if (matches(*argv, "from") == 0) {
 			NEXT_ARG();
-			get_prefix(&filter.msrc, *argv, family);
+			if (get_prefix(&filter.msrc, *argv, family))
+				invarg("from value is invalid\n", *argv);
 		} else {
 			if (strcmp(*argv, "to") == 0) {
 				NEXT_ARG();
 			}
 			if (matches(*argv, "help") == 0)
 				usage();
-			get_prefix(&filter.mdst, *argv, family);
+			if (get_prefix(&filter.mdst, *argv, family))
+				invarg("to value is invalid\n", *argv);
 		}
 		argc--; argv++;
 	}

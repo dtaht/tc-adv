@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,11 +27,12 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... prio bands NUMBER priomap P1 P2...[multiqueue]\n");
 }
 
-static int prio_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nlmsghdr *n)
+static int prio_parse_opt(struct qdisc_util *qu, int argc, char **argv,
+			  struct nlmsghdr *n, const char *dev)
 {
 	int pmap_mode = 0;
 	int idx = 0;
-	struct tc_prio_qopt opt={3,{ 1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 }};
+	struct tc_prio_qopt opt = {3, { 1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 } };
 	struct rtattr *nest;
 	unsigned char mq = 0;
 
@@ -57,7 +57,8 @@ static int prio_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct n
 			explain();
 			return -1;
 		} else {
-			unsigned band;
+			unsigned int band;
+
 			if (!pmap_mode) {
 				fprintf(stderr, "What is \"%s\"?\n", *argv);
 				explain();
@@ -104,22 +105,25 @@ int prio_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (parse_rtattr_nested_compat(tb, TCA_PRIO_MAX, opt, qopt,
 					sizeof(*qopt)))
-                return -1;
+		return -1;
 
-	fprintf(f, "bands %u priomap ", qopt->bands);
-	for (i=0; i<=TC_PRIO_MAX; i++)
-		fprintf(f, " %d", qopt->priomap[i]);
+	print_uint(PRINT_ANY, "bands", "bands %u ", qopt->bands);
+	open_json_array(PRINT_ANY, "priomap ");
+	for (i = 0; i <= TC_PRIO_MAX; i++)
+		print_uint(PRINT_ANY, NULL, " %d", qopt->priomap[i]);
+	close_json_array(PRINT_ANY, "");
 
 	if (tb[TCA_PRIO_MQ])
-		fprintf(f, " multiqueue: %s ",
-			rta_getattr_u8(tb[TCA_PRIO_MQ]) ? "on" : "off");
+		print_string(PRINT_FP, NULL, " multiqueue: %s ",
+			     rta_getattr_u8(tb[TCA_PRIO_MQ]) ? "on" : "off");
+	print_bool(PRINT_JSON, "multiqueue", NULL,
+		   tb[TCA_PRIO_MQ] && rta_getattr_u8(tb[TCA_PRIO_MQ]));
 
 	return 0;
 }
 
 struct qdisc_util prio_qdisc_util = {
-	.id	 	= "prio",
+	.id		= "prio",
 	.parse_qopt	= prio_parse_opt,
 	.print_qopt	= prio_print_opt,
 };
-

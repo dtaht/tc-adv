@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __TC_EMATCH_H_
 #define __TC_EMATCH_H_
 
@@ -87,6 +88,8 @@ struct ematch_util
 	int			kind_num;
 	int	(*parse_eopt)(struct nlmsghdr *,struct tcf_ematch_hdr *,
 			      struct bstr *);
+	int	(*parse_eopt_argv)(struct nlmsghdr *, struct tcf_ematch_hdr *,
+				   int, char **);
 	int	(*print_eopt)(FILE *, struct tcf_ematch_hdr *, void *, int);
 	void	(*print_usage)(FILE *);
 	struct ematch_util	*next;

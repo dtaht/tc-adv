@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /* q_hhf.c		Heavy-Hitter Filter (HHF)
  *
  * Copyright (C) 2013 Terry Lam <vtlam@google.com>
@@ -5,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -26,15 +26,15 @@ static void explain(void)
 }
 
 static int hhf_parse_opt(struct qdisc_util *qu, int argc, char **argv,
-			 struct nlmsghdr *n)
+			 struct nlmsghdr *n, const char *dev)
 {
-	unsigned limit = 0;
-	unsigned quantum = 0;
-	unsigned hh_limit = 0;
-	unsigned reset_timeout = 0;
-	unsigned admit_bytes = 0;
-	unsigned evict_timeout = 0;
-	unsigned non_hh_weight = 0;
+	unsigned int limit = 0;
+	unsigned int quantum = 0;
+	unsigned int hh_limit = 0;
+	unsigned int reset_timeout = 0;
+	unsigned int admit_bytes = 0;
+	unsigned int evict_timeout = 0;
+	unsigned int non_hh_weight = 0;
 	struct rtattr *tail;
 
 	while (argc > 0) {
@@ -91,8 +91,7 @@ static int hhf_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		argc--; argv++;
 	}
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	if (limit)
 		addattr_l(n, 1024, TCA_HHF_BACKLOG_LIMIT, &limit,
 			  sizeof(limit));
@@ -113,20 +112,21 @@ static int hhf_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (non_hh_weight)
 		addattr_l(n, 1024, TCA_HHF_NON_HH_WEIGHT, &non_hh_weight,
 			  sizeof(non_hh_weight));
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	addattr_nest_end(n, tail);
 	return 0;
 }
 
 static int hhf_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct rtattr *tb[TCA_HHF_MAX + 1];
-	unsigned limit;
-	unsigned quantum;
-	unsigned hh_limit;
-	unsigned reset_timeout;
-	unsigned admit_bytes;
-	unsigned evict_timeout;
-	unsigned non_hh_weight;
+	unsigned int limit;
+	unsigned int quantum;
+	unsigned int hh_limit;
+	unsigned int reset_timeout;
+	unsigned int admit_bytes;
+	unsigned int evict_timeout;
+	unsigned int non_hh_weight;
+
 	SPRINT_BUF(b1);
 
 	if (opt == NULL)

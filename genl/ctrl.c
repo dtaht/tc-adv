@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -42,23 +41,20 @@ static int usage(void)
 int genl_ctrl_resolve_family(const char *family)
 {
 	struct rtnl_handle rth;
-	struct nlmsghdr *nlh;
-	struct genlmsghdr *ghdr;
 	int ret = 0;
 	struct {
 		struct nlmsghdr         n;
+		struct genlmsghdr	g;
 		char                    buf[4096];
-	} req;
-
-	memset(&req, 0, sizeof(req));
-
-	nlh = &req.n;
-	nlh->nlmsg_len = NLMSG_LENGTH(GENL_HDRLEN);
-	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-	nlh->nlmsg_type = GENL_ID_CTRL;
-
-	ghdr = NLMSG_DATA(&req.n);
-	ghdr->cmd = CTRL_CMD_GETFAMILY;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(GENL_HDRLEN),
+		.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK,
+		.n.nlmsg_type = GENL_ID_CTRL,
+		.g.cmd = CTRL_CMD_GETFAMILY,
+	};
+	struct nlmsghdr *nlh = &req.n;
+	struct genlmsghdr *ghdr = &req.g;
+	struct nlmsghdr *answer = NULL;
 
 	if (rtnl_open_byproto(&rth, 0, NETLINK_GENERIC) < 0) {
 		fprintf(stderr, "Cannot open generic netlink socket\n");
@@ -67,20 +63,19 @@ int genl_ctrl_resolve_family(const char *family)
 
 	addattr_l(nlh, 128, CTRL_ATTR_FAMILY_NAME, family, strlen(family) + 1);
 
-	if (rtnl_talk(&rth, nlh, nlh, sizeof(req)) < 0) {
+	if (rtnl_talk(&rth, nlh, &answer) < 0) {
 		fprintf(stderr, "Error talking to the kernel\n");
 		goto errout;
 	}
 
 	{
 		struct rtattr *tb[CTRL_ATTR_MAX + 1];
-		struct genlmsghdr *ghdr = NLMSG_DATA(nlh);
-		int len = nlh->nlmsg_len;
+		int len = answer->nlmsg_len;
 		struct rtattr *attrs;
 
-		if (nlh->nlmsg_type !=  GENL_ID_CTRL) {
+		if (answer->nlmsg_type !=  GENL_ID_CTRL) {
 			fprintf(stderr, "Not a controller message, nlmsg_len=%d "
-				"nlmsg_type=0x%x\n", nlh->nlmsg_len, nlh->nlmsg_type);
+				"nlmsg_type=0x%x\n", answer->nlmsg_len, answer->nlmsg_type);
 			goto errout;
 		}
 
@@ -93,10 +88,11 @@ int genl_ctrl_resolve_family(const char *family)
 
 		if (len < 0) {
 			fprintf(stderr, "wrong controller message len %d\n", len);
+			free(answer);
 			return -1;
 		}
 
-		attrs = (struct rtattr *) ((char *) ghdr + GENL_HDRLEN);
+		attrs = (struct rtattr *) ((char *) answer + NLMSG_LENGTH(GENL_HDRLEN));
 		parse_rtattr(tb, CTRL_ATTR_MAX, attrs, len);
 
 		if (tb[CTRL_ATTR_FAMILY_ID] == NULL) {
@@ -108,6 +104,7 @@ int genl_ctrl_resolve_family(const char *family)
 	}
 
 errout:
+	free(answer);
 	rtnl_close(&rth);
 	return ret;
 }
@@ -132,7 +129,7 @@ static void print_ctrl_cmd_flags(FILE *fp, __u32 fl)
 
 	fprintf(fp, "\n");
 }
-	
+
 static int print_ctrl_cmds(FILE *fp, struct rtattr *arg, __u32 ctrl_ver)
 {
 	struct rtattr *tb[CTRL_ATTR_OP_MAX + 1];
@@ -177,8 +174,9 @@ static int print_ctrl_grp(FILE *fp, struct rtattr *arg, __u32 ctrl_ver)
 /*
  * The controller sends one nlmsg per family
 */
-static int print_ctrl(const struct sockaddr_nl *who, struct nlmsghdr *n,
-		      void *arg)
+static int print_ctrl(const struct sockaddr_nl *who,
+		      struct rtnl_ctrl_data *ctrl,
+		      struct nlmsghdr *n, void *arg)
 {
 	struct rtattr *tb[CTRL_ATTR_MAX + 1];
 	struct genlmsghdr *ghdr = NLMSG_DATA(n);
@@ -281,27 +279,29 @@ static int print_ctrl(const struct sockaddr_nl *who, struct nlmsghdr *n,
 	return 0;
 }
 
+static int print_ctrl2(const struct sockaddr_nl *who,
+		      struct nlmsghdr *n, void *arg)
+{
+	return print_ctrl(who, NULL, n, arg);
+}
+
 static int ctrl_list(int cmd, int argc, char **argv)
 {
 	struct rtnl_handle rth;
-	struct nlmsghdr *nlh;
-	struct genlmsghdr *ghdr;
 	int ret = -1;
 	char d[GENL_NAMSIZ];
 	struct {
 		struct nlmsghdr         n;
+		struct genlmsghdr	g;
 		char                    buf[4096];
-	} req;
-
-	memset(&req, 0, sizeof(req));
-
-	nlh = &req.n;
-	nlh->nlmsg_len = NLMSG_LENGTH(GENL_HDRLEN);
-	nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
-	nlh->nlmsg_type = GENL_ID_CTRL;
-
-	ghdr = NLMSG_DATA(&req.n);
-	ghdr->cmd = CTRL_CMD_GETFAMILY;
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(GENL_HDRLEN),
+		.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK,
+		.n.nlmsg_type = GENL_ID_CTRL,
+		.g.cmd = CTRL_CMD_GETFAMILY,
+	};
+	struct nlmsghdr *nlh = &req.n;
+	struct nlmsghdr *answer = NULL;
 
 	if (rtnl_open_byproto(&rth, 0, NETLINK_GENERIC) < 0) {
 		fprintf(stderr, "Cannot open generic netlink socket\n");
@@ -316,7 +316,7 @@ static int ctrl_list(int cmd, int argc, char **argv)
 
 		if (matches(*argv, "name") == 0) {
 			NEXT_ARG();
-			strncpy(d, *argv, sizeof (d) - 1);
+			strlcpy(d, *argv, sizeof(d));
 			addattr_l(nlh, 128, CTRL_ATTR_FAMILY_NAME,
 				  d, strlen(d) + 1);
 		} else if (matches(*argv, "id") == 0) {
@@ -334,12 +334,12 @@ static int ctrl_list(int cmd, int argc, char **argv)
 			goto ctrl_done;
 		}
 
-		if (rtnl_talk(&rth, nlh, nlh, sizeof(req)) < 0) {
+		if (rtnl_talk(&rth, nlh, &answer) < 0) {
 			fprintf(stderr, "Error talking to the kernel\n");
 			goto ctrl_done;
 		}
 
-		if (print_ctrl(NULL, nlh, (void *) stdout) < 0) {
+		if (print_ctrl2(NULL, answer, (void *) stdout) < 0) {
 			fprintf(stderr, "Dump terminated\n");
 			goto ctrl_done;
 		}
@@ -355,12 +355,13 @@ static int ctrl_list(int cmd, int argc, char **argv)
 			goto ctrl_done;
 		}
 
-		rtnl_dump_filter(&rth, print_ctrl, stdout);
+		rtnl_dump_filter(&rth, print_ctrl2, stdout);
 
         }
 
 	ret = 0;
 ctrl_done:
+	free(answer);
 	rtnl_close(&rth);
 	return ret;
 }
@@ -408,5 +409,5 @@ static int parse_ctrl(struct genl_util *a, int argc, char **argv)
 struct genl_util ctrl_genl_util = {
 	.name = "ctrl",
 	.parse_genlopt = parse_ctrl,
-	.print_genlopt = print_ctrl,
+	.print_genlopt = print_ctrl2,
 };

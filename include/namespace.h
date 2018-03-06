@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NAMESPACE_H__
 #define __NAMESPACE_H__ 1
 
@@ -43,9 +44,9 @@ static inline int setns(int fd, int nstype)
 }
 #endif /* HAVE_SETNS */
 
-extern int netns_switch(char *netns);
-extern int netns_get_fd(const char *netns);
-extern int netns_foreach(int (*func)(char *nsname, void *arg), void *arg);
+int netns_switch(char *netns);
+int netns_get_fd(const char *netns);
+int netns_foreach(int (*func)(char *nsname, void *arg), void *arg);
 
 struct netns_func {
 	int (*func)(char *nsname, void *arg);

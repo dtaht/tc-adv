@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -106,8 +105,8 @@ static int canid_parse_eopt(struct nlmsghdr *n, struct tcf_ematch_hdr *hdr,
 	if (args == NULL)
 		return PARSE_ERR(args, "canid: missing arguments");
 
-	rules.rules_raw = malloc(sizeof(struct can_filter) * rules.rules_capacity);
-	memset(rules.rules_raw, 0, sizeof(struct can_filter) * rules.rules_capacity);
+	rules.rules_raw = calloc(rules.rules_capacity,
+				 sizeof(struct can_filter));
 
 	do {
 		if (!bstrcmp(args, "sff")) {

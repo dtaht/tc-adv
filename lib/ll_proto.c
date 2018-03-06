@@ -12,11 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
@@ -111,8 +109,7 @@ int ll_proto_a2n(unsigned short *id, const char *buf)
 			 return 0;
 		 }
 	}
-	if (get_u16(id, buf, 0))
+	if (get_be16(id, buf, 0))
 		return -1;
-	*id = htons(*id);
 	return 0;
 }

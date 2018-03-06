@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -36,20 +35,19 @@ static void explain1(const char *arg, const char *val)
 }
 
 
-static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nlmsghdr *n)
+static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv,
+			 struct nlmsghdr *n, const char *dev)
 {
-	int ok=0;
-	struct tc_tbf_qopt opt;
+	int ok = 0;
+	struct tc_tbf_qopt opt = {};
 	__u32 rtab[256];
 	__u32 ptab[256];
-	unsigned buffer=0, mtu=0, mpu=0, latency=0;
-	int Rcell_log=-1, Pcell_log = -1;
-	unsigned short overhead=0;
+	unsigned buffer = 0, mtu = 0, mpu = 0, latency = 0;
+	int Rcell_log =  -1, Pcell_log = -1;
+	unsigned short overhead = 0;
 	unsigned int linklayer = LINKLAYER_ETHERNET; /* Assume ethernet */
 	struct rtattr *tail;
 	__u64 rate64 = 0, prate64 = 0;
-
-	memset(&opt, 0, sizeof(opt));
 
 	while (argc > 0) {
 		if (matches(*argv, "limit") == 0) {
@@ -86,6 +84,7 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 			strcmp(*argv, "buffer") == 0 ||
 			strcmp(*argv, "maxburst") == 0) {
 			const char *parm_name = *argv;
+
 			NEXT_ARG();
 			if (buffer) {
 				fprintf(stderr, "tbf: duplicate \"buffer/burst/maxburst\" specification\n");
@@ -99,6 +98,7 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 		} else if (strcmp(*argv, "mtu") == 0 ||
 			   strcmp(*argv, "minburst") == 0) {
 			const char *parm_name = *argv;
+
 			NEXT_ARG();
 			if (mtu) {
 				fprintf(stderr, "tbf: duplicate \"mtu/minburst\" specification\n");
@@ -126,7 +126,12 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 				fprintf(stderr, "tbf: duplicate \"rate\" specification\n");
 				return -1;
 			}
-			if (get_rate64(&rate64, *argv)) {
+			if (strchr(*argv, '%')) {
+				if (get_percent_rate64(&rate64, *argv, dev)) {
+					explain1("rate", *argv);
+					return -1;
+				}
+			} else if (get_rate64(&rate64, *argv)) {
 				explain1("rate", *argv);
 				return -1;
 			}
@@ -137,7 +142,12 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 				fprintf(stderr, "tbf: duplicate \"peakrate\" specification\n");
 				return -1;
 			}
-			if (get_rate64(&prate64, *argv)) {
+			if (strchr(*argv, '%')) {
+				if (get_percent_rate64(&prate64, *argv, dev)) {
+					explain1("peakrate", *argv);
+					return -1;
+				}
+			} else if (get_rate64(&prate64, *argv)) {
 				explain1("peakrate", *argv);
 				return -1;
 			}
@@ -167,12 +177,12 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 		argc--; argv++;
 	}
 
-        int verdict = 0;
+	int verdict = 0;
 
-        /* Be nice to the user: try to emit all error messages in
-         * one go rather than reveal one more problem when a
-         * previous one has been fixed.
-         */
+	/* Be nice to the user: try to emit all error messages in
+	 * one go rather than reveal one more problem when a
+	 * previous one has been fixed.
+	 */
 	if (rate64 == 0) {
 		fprintf(stderr, "tbf: the \"rate\" parameter is mandatory.\n");
 		verdict = -1;
@@ -193,18 +203,20 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 		verdict = -1;
 	}
 
-        if (verdict != 0) {
-                explain();
-                return verdict;
-        }
+	if (verdict != 0) {
+		explain();
+		return verdict;
+	}
 
 	opt.rate.rate = (rate64 >= (1ULL << 32)) ? ~0U : rate64;
 	opt.peakrate.rate = (prate64 >= (1ULL << 32)) ? ~0U : prate64;
 
 	if (opt.limit == 0) {
 		double lim = rate64*(double)latency/TIME_UNITS_PER_SEC + buffer;
+
 		if (prate64) {
 			double lim2 = prate64*(double)latency/TIME_UNITS_PER_SEC + mtu;
+
 			if (lim2 < lim)
 				lim = lim2;
 		}
@@ -229,8 +241,7 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 		opt.mtu = tc_calc_xmittime(opt.peakrate.rate, mtu);
 	}
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 1024, TCA_OPTIONS);
 	addattr_l(n, 2024, TCA_TBF_PARMS, &opt, sizeof(opt));
 	addattr_l(n, 2124, TCA_TBF_BURST, &buffer, sizeof(buffer));
 	if (rate64 >= (1ULL << 32))
@@ -242,7 +253,7 @@ static int tbf_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nl
 		addattr_l(n, 3224, TCA_TBF_PBURST, &mtu, sizeof(mtu));
 		addattr_l(n, 4096, TCA_TBF_PTAB, ptab, 1024);
 	}
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	addattr_nest_end(n, tail);
 	return 0;
 }
 
@@ -254,6 +265,7 @@ static int tbf_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	double buffer, mtu;
 	double latency;
 	__u64 rate64 = 0, prate64 = 0;
+
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 	SPRINT_BUF(b3);
@@ -305,6 +317,7 @@ static int tbf_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	latency = TIME_UNITS_PER_SEC*(qopt->limit/(double)rate64) - tc_core_tick2time(qopt->buffer);
 	if (prate64) {
 		double lat2 = TIME_UNITS_PER_SEC*(qopt->limit/(double)prate64) - tc_core_tick2time(qopt->mtu);
+
 		if (lat2 > latency)
 			latency = lat2;
 	}
@@ -328,4 +341,3 @@ struct qdisc_util tbf_qdisc_util = {
 	.parse_qopt	= tbf_parse_opt,
 	.print_qopt	= tbf_print_opt,
 };
-

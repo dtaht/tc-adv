@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0
 GENLOBJ=genl.o
 
-include ../Config
+include ../config.mk
 SHARED_LIBS ?= y
 
 CFLAGS += -fno-strict-aliasing
@@ -20,6 +21,7 @@ endif
 all: genl
 
 genl: $(GENLOBJ) $(LIBNETLINK) $(LIBUTIL) $(GENLLIB)
+	$(QUIET_LINK)$(CC) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
 install: all
 	install -m 0755 genl $(DESTDIR)$(SBINDIR)

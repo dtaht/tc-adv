@@ -20,15 +20,19 @@
 #include <sys/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
+#include <linux/if_arp.h>
 #include <pwd.h>
 #include <grp.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
+#include <glob.h>
 
 #include "rt_names.h"
 #include "utils.h"
 #include "ip_common.h"
+
+static const char drv_name[] = "tun";
 
 #define TUNDEV "/dev/net/tun"
 
@@ -36,9 +40,9 @@ static void usage(void) __attribute__((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ip tuntap { add | del | show | list | lst | help } [ dev PHYS_DEV ] \n");
+	fprintf(stderr, "Usage: ip tuntap { add | del | show | list | lst | help } [ dev PHYS_DEV ]\n");
 	fprintf(stderr, "          [ mode { tun | tap } ] [ user USER ] [ group GROUP ]\n");
-	fprintf(stderr, "          [ one_queue ] [ pi ] [ vnet_hdr ] [ multi_queue ]\n");
+	fprintf(stderr, "          [ one_queue ] [ pi ] [ vnet_hdr ] [ multi_queue ] [ name NAME ]\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Where: USER  := { STRING | NUMBER }\n");
 	fprintf(stderr, "       GROUP := { STRING | NUMBER }\n");
@@ -104,7 +108,8 @@ static int tap_del_ioctl(struct ifreq *ifr)
 	return ret;
 
 }
-static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_t *gid)
+static int parse_args(int argc, char **argv,
+		      struct ifreq *ifr, uid_t *uid, gid_t *gid)
 {
 	int count = 0;
 
@@ -117,18 +122,18 @@ static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_
 			NEXT_ARG();
 			if (matches(*argv, "tun") == 0) {
 				if (ifr->ifr_flags & IFF_TAP) {
-					fprintf(stderr,"You managed to ask for more than one tunnel mode.\n");
+					fprintf(stderr, "You managed to ask for more than one tunnel mode.\n");
 					exit(-1);
 				}
 				ifr->ifr_flags |= IFF_TUN;
 			} else if (matches(*argv, "tap") == 0) {
 				if (ifr->ifr_flags & IFF_TUN) {
-					fprintf(stderr,"You managed to ask for more than one tunnel mode.\n");
+					fprintf(stderr, "You managed to ask for more than one tunnel mode.\n");
 					exit(-1);
 				}
 				ifr->ifr_flags |= IFF_TAP;
 			} else {
-				fprintf(stderr,"Unknown tunnel mode \"%s\"\n", *argv);
+				fprintf(stderr, "Unknown tunnel mode \"%s\"\n", *argv);
 				exit(-1);
 			}
 		} else if (uid && matches(*argv, "user") == 0) {
@@ -140,6 +145,7 @@ static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_
 				*uid = user;
 			else {
 				struct passwd *pw = getpwnam(*argv);
+
 				if (!pw) {
 					fprintf(stderr, "invalid user \"%s\"\n", *argv);
 					exit(-1);
@@ -156,6 +162,7 @@ static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_
 				*gid = group;
 			else {
 				struct group *gr = getgrnam(*argv);
+
 				if (!gr) {
 					fprintf(stderr, "invalid group \"%s\"\n", *argv);
 					exit(-1);
@@ -172,7 +179,8 @@ static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_
 			ifr->ifr_flags |= IFF_MULTI_QUEUE;
 		} else if (matches(*argv, "dev") == 0) {
 			NEXT_ARG();
-			strncpy(ifr->ifr_name, *argv, IFNAMSIZ-1);
+			if (get_ifname(ifr->ifr_name, *argv))
+				invarg("\"dev\" not a valid ifname", *argv);
 		} else {
 			if (matches(*argv, "name") == 0) {
 				NEXT_ARG();
@@ -180,7 +188,8 @@ static int parse_args(int argc, char **argv, struct ifreq *ifr, uid_t *uid, gid_
 				usage();
 			if (ifr->ifr_name[0])
 				duparg2("name", *argv);
-			strncpy(ifr->ifr_name, *argv, IFNAMSIZ);
+			if (get_ifname(ifr->ifr_name, *argv))
+				invarg("\"name\" not a valid ifname", *argv);
 		}
 		count++;
 		argc--; argv++;
@@ -217,38 +226,6 @@ static int do_del(int argc, char **argv)
 	return tap_del_ioctl(&ifr);
 }
 
-static int read_prop(char *dev, char *prop, long *value)
-{
-	char fname[IFNAMSIZ+25], buf[80], *endp;
-	ssize_t len;
-	int fd;
-	long result;
-
-	sprintf(fname, "/sys/class/net/%s/%s", dev, prop);
-	fd = open(fname, O_RDONLY);
-	if (fd < 0) {
-		if (strcmp(prop, "tun_flags"))
-			fprintf(stderr, "open %s: %s\n", fname,
-				strerror(errno));
-		return -1;
-	}
-	len = read(fd, buf, sizeof(buf)-1);
-	close(fd);
-	if (len < 0) {
-		fprintf(stderr, "read %s: %s", fname, strerror(errno));
-		return -1;
-	}
-
-	buf[len] = 0;
-	result = strtol(buf, &endp, 0);
-	if (*endp != '\n') {
-		fprintf(stderr, "Failed to parse %s\n", fname);
-		return -1;
-	}
-	*value = result;
-	return 0;
-}
-
 static void print_flags(long flags)
 {
 	if (flags & IFF_TUN)
@@ -271,37 +248,204 @@ static void print_flags(long flags)
 		printf(" UNKNOWN_FLAGS:%lx", flags);
 }
 
-static int do_show(int argc, char **argv)
+static char *pid_name(pid_t pid)
 {
-	DIR *dir;
-	struct dirent *d;
+	char *comm;
+	FILE *f;
+	int err;
+
+	err = asprintf(&comm, "/proc/%d/comm", pid);
+	if (err < 0)
+		return NULL;
+
+	f = fopen(comm, "r");
+	free(comm);
+	if (!f) {
+		perror("fopen");
+		return NULL;
+	}
+
+	if (fscanf(f, "%ms\n", &comm) != 1) {
+		perror("fscanf");
+		comm = NULL;
+	}
+
+
+	if (fclose(f))
+		perror("fclose");
+
+	return comm;
+}
+
+static void show_processes(const char *name)
+{
+	glob_t globbuf = { };
+	char **fd_path;
+	int err;
+
+	err = glob("/proc/[0-9]*/fd/[0-9]*", GLOB_NOSORT,
+		   NULL, &globbuf);
+	if (err)
+		return;
+
+	fd_path = globbuf.gl_pathv;
+	while (*fd_path) {
+		const char *dev_net_tun = "/dev/net/tun";
+		const size_t linkbuf_len = strlen(dev_net_tun) + 2;
+		char linkbuf[linkbuf_len], *fdinfo;
+		int pid, fd;
+		FILE *f;
+
+		if (sscanf(*fd_path, "/proc/%d/fd/%d", &pid, &fd) != 2)
+			goto next;
+
+		if (pid == getpid())
+			goto next;
+
+		err = readlink(*fd_path, linkbuf, linkbuf_len - 1);
+		if (err < 0) {
+			perror("readlink");
+			goto next;
+		}
+		linkbuf[err] = '\0';
+		if (strcmp(dev_net_tun, linkbuf))
+			goto next;
+
+		if (asprintf(&fdinfo, "/proc/%d/fdinfo/%d", pid, fd) < 0)
+			goto next;
+
+		f = fopen(fdinfo, "r");
+		free(fdinfo);
+		if (!f) {
+			perror("fopen");
+			goto next;
+		}
+
+		while (!feof(f)) {
+			char *key = NULL, *value = NULL;
+
+			err = fscanf(f, "%m[^:]: %ms\n", &key, &value);
+			if (err == EOF) {
+				if (ferror(f))
+					perror("fscanf");
+				break;
+			} else if (err == 2 &&
+				   !strcmp("iff", key) &&
+				   !strcmp(name, value)) {
+				char *pname = pid_name(pid);
+
+				printf(" %s(%d)", pname ? : "<NULL>", pid);
+				free(pname);
+			}
+
+			free(key);
+			free(value);
+		}
+		if (fclose(f))
+			perror("fclose");
+
+next:
+		++fd_path;
+	}
+
+	globfree(&globbuf);
+}
+
+static int tuntap_filter_req(struct nlmsghdr *nlh, int reqlen)
+{
+	struct rtattr *linkinfo;
+	int err;
+
+	linkinfo = addattr_nest(nlh, reqlen, IFLA_LINKINFO);
+
+	err = addattr_l(nlh, reqlen, IFLA_INFO_KIND,
+			drv_name, sizeof(drv_name) - 1);
+	if (err)
+		return err;
+
+	addattr_nest_end(nlh, linkinfo);
+
+	return 0;
+}
+
+static int print_tuntap(const struct sockaddr_nl *who,
+			struct nlmsghdr *n, void *arg)
+{
+	struct ifinfomsg *ifi = NLMSG_DATA(n);
+	struct rtattr *tb[IFLA_MAX+1];
+	struct rtattr *linkinfo[IFLA_INFO_MAX+1];
+	const char *name, *kind;
 	long flags, owner = -1, group = -1;
 
-	dir = opendir("/sys/class/net");
-	if (!dir) {
-		perror("opendir");
+	if (n->nlmsg_type != RTM_NEWLINK && n->nlmsg_type != RTM_DELLINK)
+		return 0;
+
+	if (n->nlmsg_len < NLMSG_LENGTH(sizeof(*ifi)))
+		return -1;
+
+	switch (ifi->ifi_type) {
+	case ARPHRD_NONE:
+	case ARPHRD_ETHER:
+		break;
+	default:
+		return 0;
+	}
+
+	parse_rtattr(tb, IFLA_MAX, IFLA_RTA(ifi), IFLA_PAYLOAD(n));
+
+	if (!tb[IFLA_IFNAME])
+		return 0;
+
+	if (!tb[IFLA_LINKINFO])
+		return 0;
+
+	parse_rtattr_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO]);
+
+	if (!linkinfo[IFLA_INFO_KIND])
+		return 0;
+
+	kind = rta_getattr_str(linkinfo[IFLA_INFO_KIND]);
+	if (strcmp(kind, drv_name))
+		return 0;
+
+	name = rta_getattr_str(tb[IFLA_IFNAME]);
+
+	if (read_prop(name, "tun_flags", &flags))
+		return 0;
+	if (read_prop(name, "owner", &owner))
+		return 0;
+	if (read_prop(name, "group", &group))
+		return 0;
+
+	printf("%s:", name);
+	print_flags(flags);
+	if (owner != -1)
+		printf(" user %ld", owner);
+	if (group != -1)
+		printf(" group %ld", group);
+	fputc('\n', stdout);
+	if (show_details) {
+		printf("\tAttached to processes:");
+		show_processes(name);
+		fputc('\n', stdout);
+	}
+
+	return 0;
+}
+
+static int do_show(int argc, char **argv)
+{
+	if (rtnl_wilddump_req_filter_fn(&rth, AF_UNSPEC, RTM_GETLINK,
+					tuntap_filter_req) < 0) {
+		perror("Cannot send dump request\n");
 		return -1;
 	}
-	while ((d = readdir(dir))) {
-		if (d->d_name[0] == '.' &&
-		    (d->d_name[1] == 0 || d->d_name[1] == '.'))
-			continue;
 
-		if (read_prop(d->d_name, "tun_flags", &flags))
-			continue;
-
-		read_prop(d->d_name, "owner", &owner);
-		read_prop(d->d_name, "group", &group);
-
-		printf("%s:", d->d_name);
-		print_flags(flags);
-		if (owner != -1)
-			printf(" user %ld", owner);
-		if (group != -1)
-			printf(" group %ld", group);
-		printf("\n");
+	if (rtnl_dump_filter(&rth, print_tuntap, NULL) < 0) {
+		fprintf(stderr, "Dump terminated\n");
+		return -1;
 	}
-	closedir(dir);
+
 	return 0;
 }
 
@@ -313,9 +457,9 @@ int do_iptuntap(int argc, char **argv)
 		if (matches(*argv, "delete") == 0)
 			return do_del(argc-1, argv+1);
 		if (matches(*argv, "show") == 0 ||
-                    matches(*argv, "lst") == 0 ||
-                    matches(*argv, "list") == 0)
-                        return do_show(argc-1, argv+1);
+		    matches(*argv, "lst") == 0 ||
+		    matches(*argv, "list") == 0)
+			return do_show(argc-1, argv+1);
 		if (matches(*argv, "help") == 0)
 			usage();
 	} else
@@ -325,3 +469,102 @@ int do_iptuntap(int argc, char **argv)
 		*argv);
 	exit(-1);
 }
+
+static void print_owner(FILE *f, uid_t uid)
+{
+	struct passwd *pw = getpwuid(uid);
+
+	if (pw)
+		print_string(PRINT_ANY, "user", "user %s ", pw->pw_name);
+	else
+		print_uint(PRINT_ANY, "user", "user %u ", uid);
+}
+
+static void print_group(FILE *f, gid_t gid)
+{
+	struct group *group = getgrgid(gid);
+
+	if (group)
+		print_string(PRINT_ANY, "group", "group %s ", group->gr_name);
+	else
+		print_uint(PRINT_ANY, "group", "group %u ", gid);
+}
+
+static void print_mq(FILE *f, struct rtattr *tb[])
+{
+	if (!tb[IFLA_TUN_MULTI_QUEUE] ||
+	    !rta_getattr_u8(tb[IFLA_TUN_MULTI_QUEUE])) {
+		if (is_json_context())
+			print_bool(PRINT_JSON, "multi_queue", NULL, false);
+		return;
+	}
+
+	print_bool(PRINT_ANY, "multi_queue", "multi_queue ", true);
+
+	if (tb[IFLA_TUN_NUM_QUEUES]) {
+		print_uint(PRINT_ANY, "numqueues", "numqueues %u ",
+			   rta_getattr_u32(tb[IFLA_TUN_NUM_QUEUES]));
+	}
+
+	if (tb[IFLA_TUN_NUM_DISABLED_QUEUES]) {
+		print_uint(PRINT_ANY, "numdisabled", "numdisabled %u ",
+			   rta_getattr_u32(tb[IFLA_TUN_NUM_DISABLED_QUEUES]));
+	}
+}
+
+static void print_onoff(FILE *f, const char *flag, __u8 val)
+{
+	if (is_json_context())
+		print_bool(PRINT_JSON, flag, NULL, !!val);
+	else
+		fprintf(f, "%s %s ", flag, val ? "on" : "off");
+}
+
+static void print_type(FILE *f, __u8 type)
+{
+	SPRINT_BUF(buf);
+	const char *str = buf;
+
+	if (type == IFF_TUN)
+		str = "tun";
+	else if (type == IFF_TAP)
+		str = "tap";
+	else
+		snprintf(buf, sizeof(buf), "UNKNOWN:%hhu", type);
+
+	print_string(PRINT_ANY, "type", "type %s ", str);
+}
+
+static void tun_print_opt(struct link_util *lu, FILE *f, struct rtattr *tb[])
+{
+	if (!tb)
+		return;
+
+	if (tb[IFLA_TUN_TYPE])
+		print_type(f, rta_getattr_u8(tb[IFLA_TUN_TYPE]));
+
+	if (tb[IFLA_TUN_PI])
+		print_onoff(f, "pi", rta_getattr_u8(tb[IFLA_TUN_PI]));
+
+	if (tb[IFLA_TUN_VNET_HDR]) {
+		print_onoff(f, "vnet_hdr",
+			    rta_getattr_u8(tb[IFLA_TUN_VNET_HDR]));
+	}
+
+	print_mq(f, tb);
+
+	if (tb[IFLA_TUN_PERSIST])
+		print_onoff(f, "persist", rta_getattr_u8(tb[IFLA_TUN_PERSIST]));
+
+	if (tb[IFLA_TUN_OWNER])
+		print_owner(f, rta_getattr_u32(tb[IFLA_TUN_OWNER]));
+
+	if (tb[IFLA_TUN_GROUP])
+		print_group(f, rta_getattr_u32(tb[IFLA_TUN_GROUP]));
+}
+
+struct link_util tun_link_util = {
+	.id = "tun",
+	.maxattr = IFLA_TUN_MAX,
+	.print_opt = tun_print_opt,
+};

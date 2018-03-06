@@ -50,8 +50,9 @@ static void usage(void)
 	fprintf(stderr, "          [ mode { ip6ip6 | ipip6 | ip6gre | vti6 | any } ]\n");
 	fprintf(stderr, "          [ remote ADDR local ADDR ] [ dev PHYS_DEV ]\n");
 	fprintf(stderr, "          [ encaplimit ELIM ]\n");
-	fprintf(stderr ,"          [ hoplimit TTL ] [ tclass TCLASS ] [ flowlabel FLOWLABEL ]\n");
+	fprintf(stderr, "          [ hoplimit TTL ] [ tclass TCLASS ] [ flowlabel FLOWLABEL ]\n");
 	fprintf(stderr, "          [ dscp inherit ]\n");
+	fprintf(stderr, "          [ [no]allow-localremote ]\n");
 	fprintf(stderr, "          [ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Where: NAME      := STRING\n");
@@ -66,18 +67,23 @@ static void usage(void)
 	exit(-1);
 }
 
-static void print_tunnel(struct ip6_tnl_parm2 *p)
+static void print_tunnel(const void *t)
 {
-	char remote[64];
-	char local[64];
+	const struct ip6_tnl_parm2 *p = t;
+	char s1[1024];
+	char s2[1024];
 
-	inet_ntop(AF_INET6, &p->raddr, remote, sizeof(remote));
-	inet_ntop(AF_INET6, &p->laddr, local, sizeof(local));
-
+	/* Do not use format_host() for local addr,
+	 * symbolic name will not be useful.
+	 */
 	printf("%s: %s/ipv6 remote %s local %s",
-	       p->name, tnl_strproto(p->proto), remote, local);
+	       p->name,
+	       tnl_strproto(p->proto),
+	       format_host_r(AF_INET6, 16, &p->raddr, s1, sizeof(s1)),
+	       rt_addr_n2a_r(AF_INET6, 16, &p->laddr, s2, sizeof(s2)));
 	if (p->link) {
 		const char *n = ll_index_to_name(p->link);
+
 		if (n)
 			printf(" dev %s", n);
 	}
@@ -87,12 +93,16 @@ static void print_tunnel(struct ip6_tnl_parm2 *p)
 	else
 		printf(" encaplimit %u", p->encap_limit);
 
-	printf(" hoplimit %u", p->hop_limit);
+	if (p->hop_limit)
+		printf(" hoplimit %u", p->hop_limit);
+	else
+		printf(" hoplimit inherit");
 
 	if (p->flags & IP6_TNL_F_USE_ORIG_TCLASS)
 		printf(" tclass inherit");
 	else {
 		__u32 val = ntohl(p->flowinfo & IP6_FLOWINFO_TCLASS);
+
 		printf(" tclass 0x%02x", (__u8)(val >> 20));
 	}
 
@@ -106,23 +116,27 @@ static void print_tunnel(struct ip6_tnl_parm2 *p)
 	if (p->flags & IP6_TNL_F_RCV_DSCP_COPY)
 		printf(" dscp inherit");
 
-	if (p->proto == IPPROTO_GRE) {
-		if ((p->i_flags&GRE_KEY) && (p->o_flags&GRE_KEY) && p->o_key == p->i_key)
-			printf(" key %u", ntohl(p->i_key));
-		else if ((p->i_flags|p->o_flags)&GRE_KEY) {
-			if (p->i_flags&GRE_KEY)
-				printf(" ikey %u ", ntohl(p->i_key));
-			if (p->o_flags&GRE_KEY)
-				printf(" okey %u ", ntohl(p->o_key));
-		}
+	if (p->flags & IP6_TNL_F_ALLOW_LOCAL_REMOTE)
+		printf(" allow-localremote");
 
-		if (p->i_flags&GRE_SEQ)
+	if ((p->i_flags & GRE_KEY) && (p->o_flags & GRE_KEY) &&
+	    p->o_key == p->i_key)
+		printf(" key %u", ntohl(p->i_key));
+	else {
+		if (p->i_flags & GRE_KEY)
+			printf(" ikey %u", ntohl(p->i_key));
+		if (p->o_flags & GRE_KEY)
+			printf(" okey %u", ntohl(p->o_key));
+	}
+
+	if (p->proto == IPPROTO_GRE) {
+		if (p->i_flags & GRE_SEQ)
 			printf("%s  Drop packets out of sequence.", _SL_);
-		if (p->i_flags&GRE_CSUM)
+		if (p->i_flags & GRE_CSUM)
 			printf("%s  Checksum in received packet is required.", _SL_);
-		if (p->o_flags&GRE_SEQ)
+		if (p->o_flags & GRE_SEQ)
 			printf("%s  Sequence packets on output.", _SL_);
-		if (p->o_flags&GRE_CSUM)
+		if (p->o_flags & GRE_CSUM)
 			printf("%s  Checksum output packets.", _SL_);
 	}
 }
@@ -130,9 +144,7 @@ static void print_tunnel(struct ip6_tnl_parm2 *p)
 static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 {
 	int count = 0;
-	char medium[IFNAMSIZ];
-
-	memset(medium, 0, sizeof(medium));
+	const char *medium = NULL;
 
 	while (argc > 0) {
 		if (strcmp(*argv, "mode") == 0) {
@@ -155,32 +167,31 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 				 strcmp(*argv, "any") == 0)
 				p->proto = 0;
 			else {
-				fprintf(stderr,"Unknown tunnel mode \"%s\"\n", *argv);
+				fprintf(stderr, "Unknown tunnel mode \"%s\"\n", *argv);
 				exit(-1);
 			}
 		} else if (strcmp(*argv, "remote") == 0) {
 			inet_prefix raddr;
+
 			NEXT_ARG();
-			get_prefix(&raddr, *argv, preferred_family);
-			if (raddr.family == AF_UNSPEC)
-				invarg("\"remote\" address family is AF_UNSPEC", *argv);
+			get_addr(&raddr, *argv, AF_INET6);
 			memcpy(&p->raddr, &raddr.data, sizeof(p->raddr));
 		} else if (strcmp(*argv, "local") == 0) {
 			inet_prefix laddr;
+
 			NEXT_ARG();
-			get_prefix(&laddr, *argv, preferred_family);
-			if (laddr.family == AF_UNSPEC)
-				invarg("\"local\" address family is AF_UNSPEC", *argv);
+			get_addr(&laddr, *argv, AF_INET6);
 			memcpy(&p->laddr, &laddr.data, sizeof(p->laddr));
 		} else if (strcmp(*argv, "dev") == 0) {
 			NEXT_ARG();
-			strncpy(medium, *argv, IFNAMSIZ - 1);
+			medium = *argv;
 		} else if (strcmp(*argv, "encaplimit") == 0) {
 			NEXT_ARG();
 			if (strcmp(*argv, "none") == 0) {
 				p->flags |= IP6_TNL_F_IGN_ENCAP_LIMIT;
 			} else {
 				__u8 uval;
+
 				if (get_u8(&uval, *argv, 0) < -1)
 					invarg("invalid ELIM", *argv);
 				p->encap_limit = uval;
@@ -190,6 +201,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 			   strcmp(*argv, "ttl") == 0 ||
 			   strcmp(*argv, "hlim") == 0) {
 			__u8 uval;
+
 			NEXT_ARG();
 			if (get_u8(&uval, *argv, 0))
 				invarg("invalid TTL", *argv);
@@ -199,6 +211,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 			   strcmp(*argv, "tos") == 0 ||
 			   matches(*argv, "dsfield") == 0) {
 			__u8 uval;
+
 			NEXT_ARG();
 			p->flowinfo &= ~IP6_FLOWINFO_TCLASS;
 			if (strcmp(*argv, "inherit") == 0)
@@ -212,6 +225,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 		} else if (strcmp(*argv, "flowlabel") == 0 ||
 			   strcmp(*argv, "fl") == 0) {
 			__u32 uval;
+
 			NEXT_ARG();
 			p->flowinfo &= ~IP6_FLOWINFO_FLOWLABEL;
 			if (strcmp(*argv, "inherit") == 0)
@@ -229,46 +243,23 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 			if (strcmp(*argv, "inherit") != 0)
 				invarg("not inherit", *argv);
 			p->flags |= IP6_TNL_F_RCV_DSCP_COPY;
+		} else if (strcmp(*argv, "allow-localremote") == 0) {
+			p->flags |= IP6_TNL_F_ALLOW_LOCAL_REMOTE;
+		} else if (strcmp(*argv, "noallow-localremote") == 0) {
+			p->flags &= ~IP6_TNL_F_ALLOW_LOCAL_REMOTE;
 		} else if (strcmp(*argv, "key") == 0) {
-			unsigned uval;
 			NEXT_ARG();
 			p->i_flags |= GRE_KEY;
 			p->o_flags |= GRE_KEY;
-			if (strchr(*argv, '.'))
-				p->i_key = p->o_key = get_addr32(*argv);
-			else {
-				if (get_unsigned(&uval, *argv, 0) < 0) {
-					fprintf(stderr, "invalid value of \"key\"\n");
-					exit(-1);
-				}
-				p->i_key = p->o_key = htonl(uval);
-			}
+			p->i_key = p->o_key = tnl_parse_key("key", *argv);
 		} else if (strcmp(*argv, "ikey") == 0) {
-			unsigned uval;
 			NEXT_ARG();
 			p->i_flags |= GRE_KEY;
-			if (strchr(*argv, '.'))
-				p->i_key = get_addr32(*argv);
-			else {
-				if (get_unsigned(&uval, *argv, 0)<0) {
-					fprintf(stderr, "invalid value of \"ikey\"\n");
-					exit(-1);
-				}
-				p->i_key = htonl(uval);
-			}
+			p->i_key = tnl_parse_key("ikey", *argv);
 		} else if (strcmp(*argv, "okey") == 0) {
-			unsigned uval;
 			NEXT_ARG();
 			p->o_flags |= GRE_KEY;
-			if (strchr(*argv, '.'))
-				p->o_key = get_addr32(*argv);
-			else {
-				if (get_unsigned(&uval, *argv, 0)<0) {
-					fprintf(stderr, "invalid value of \"okey\"\n");
-					exit(-1);
-				}
-				p->o_key = htonl(uval);
-			}
+			p->o_key = tnl_parse_key("okey", *argv);
 		} else if (strcmp(*argv, "seq") == 0) {
 			p->i_flags |= GRE_SEQ;
 			p->o_flags |= GRE_SEQ;
@@ -286,15 +277,15 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 		} else {
 			if (strcmp(*argv, "name") == 0) {
 				NEXT_ARG();
-			}
-			if (matches(*argv, "help") == 0)
+			} else if (matches(*argv, "help") == 0)
 				usage();
 			if (p->name[0])
 				duparg2("name", *argv);
-			strncpy(p->name, *argv, IFNAMSIZ - 1);
+			if (get_ifname(p->name, *argv))
+				invarg("\"name\" not a valid ifname", *argv);
 			if (cmd == SIOCCHGTUNNEL && count == 0) {
-				struct ip6_tnl_parm2 old_p;
-				memset(&old_p, 0, sizeof(old_p));
+				struct ip6_tnl_parm2 old_p = {};
+
 				if (tnl_get_ioctl(*argv, &old_p))
 					return -1;
 				*p = old_p;
@@ -303,10 +294,12 @@ static int parse_args(int argc, char **argv, int cmd, struct ip6_tnl_parm2 *p)
 		count++;
 		argc--; argv++;
 	}
-	if (medium[0]) {
+	if (medium) {
 		p->link = ll_name_to_index(medium);
-		if (p->link == 0)
+		if (p->link == 0) {
+			fprintf(stderr, "Cannot find device \"%s\"\n", medium);
 			return -1;
+		}
 	}
 	return 0;
 }
@@ -321,19 +314,30 @@ static void ip6_tnl_parm_init(struct ip6_tnl_parm2 *p, int apply_default)
 	}
 }
 
-/*
- * @p1: user specified parameter
- * @p2: database entry
- */
-static int ip6_tnl_parm_match(const struct ip6_tnl_parm2 *p1,
-			      const struct ip6_tnl_parm2 *p2)
+static void ip6_tnl_parm_initialize(const struct tnl_print_nlmsg_info *info)
 {
+	const struct ifinfomsg *ifi = info->ifi;
+	const struct ip6_tnl_parm2 *p1 = info->p1;
+	struct ip6_tnl_parm2 *p2 = info->p2;
+
+	ip6_tnl_parm_init(p2, 0);
+	if (ifi->ifi_type == ARPHRD_IP6GRE)
+		p2->proto = IPPROTO_GRE;
+	p2->link = ifi->ifi_index;
+	strcpy(p2->name, p1->name);
+}
+
+static bool ip6_tnl_parm_match(const struct tnl_print_nlmsg_info *info)
+{
+	const struct ip6_tnl_parm2 *p1 = info->p1;
+	const struct ip6_tnl_parm2 *p2 = info->p2;
+
 	return ((!p1->link || p1->link == p2->link) &&
 		(!p1->name[0] || strcmp(p1->name, p2->name) == 0) &&
-		(memcmp(&p1->laddr, &in6addr_any, sizeof(p1->laddr)) == 0 ||
-		 memcmp(&p1->laddr, &p2->laddr, sizeof(p1->laddr)) == 0) &&
-		(memcmp(&p1->raddr, &in6addr_any, sizeof(p1->raddr)) == 0 ||
-		 memcmp(&p1->raddr, &p2->raddr, sizeof(p1->raddr)) == 0) &&
+		(IN6_IS_ADDR_UNSPECIFIED(&p1->laddr) ||
+		 IN6_ARE_ADDR_EQUAL(&p1->laddr, &p2->laddr)) &&
+		(IN6_IS_ADDR_UNSPECIFIED(&p1->raddr) ||
+		 IN6_ARE_ADDR_EQUAL(&p1->raddr, &p2->raddr)) &&
 		(!p1->proto || !p2->proto || p1->proto == p2->proto) &&
 		(!p1->encap_limit || p1->encap_limit == p2->encap_limit) &&
 		(!p1->hop_limit || p1->hop_limit == p2->hop_limit) &&
@@ -344,110 +348,34 @@ static int ip6_tnl_parm_match(const struct ip6_tnl_parm2 *p1,
 		(!p1->flags || (p1->flags & p2->flags)));
 }
 
-static int do_tunnels_list(struct ip6_tnl_parm2 *p)
-{
-	char buf[512];
-	int err = -1;
-	FILE *fp = fopen("/proc/net/dev", "r");
-	if (fp == NULL) {
-		perror("fopen");
-		goto end;
-	}
-
-	/* skip two lines at the begenning of the file */
-	if (!fgets(buf, sizeof(buf), fp) ||
-	    !fgets(buf, sizeof(buf), fp)) {
-		fprintf(stderr, "/proc/net/dev read error\n");
-		return -1;
-	}
-
-	while (fgets(buf, sizeof(buf), fp) != NULL) {
-		char name[IFNAMSIZ];
-		int index, type;
-		unsigned long rx_bytes, rx_packets, rx_errs, rx_drops,
-			rx_fifo, rx_frame,
-			tx_bytes, tx_packets, tx_errs, tx_drops,
-			tx_fifo, tx_colls, tx_carrier, rx_multi;
-		struct ip6_tnl_parm2 p1;
-		char *ptr;
-
-		buf[sizeof(buf) - 1] = '\0';
-		if ((ptr = strchr(buf, ':')) == NULL ||
-		    (*ptr++ = 0, sscanf(buf, "%s", name) != 1)) {
-			fprintf(stderr, "Wrong format for /proc/net/dev. Giving up.\n");
-			goto end;
-		}
-		if (sscanf(ptr, "%ld%ld%ld%ld%ld%ld%ld%*d%ld%ld%ld%ld%ld%ld%ld",
-			   &rx_bytes, &rx_packets, &rx_errs, &rx_drops,
-			   &rx_fifo, &rx_frame, &rx_multi,
-			   &tx_bytes, &tx_packets, &tx_errs, &tx_drops,
-			   &tx_fifo, &tx_colls, &tx_carrier) != 14)
-			continue;
-		if (p->name[0] && strcmp(p->name, name))
-			continue;
-		index = ll_name_to_index(name);
-		if (index == 0)
-			continue;
-		type = ll_index_to_type(index);
-		if (type == -1) {
-			fprintf(stderr, "Failed to get type of \"%s\"\n", name);
-			continue;
-		}
-		if (type != ARPHRD_TUNNEL6 && type != ARPHRD_IP6GRE)
-			continue;
-		memset(&p1, 0, sizeof(p1));
-		ip6_tnl_parm_init(&p1, 0);
-		if (type == ARPHRD_IP6GRE)
-			p1.proto = IPPROTO_GRE;
-		strcpy(p1.name, name);
-		p1.link = ll_name_to_index(p1.name);
-		if (p1.link == 0)
-			continue;
-		if (tnl_get_ioctl(p1.name, &p1))
-			continue;
-		if (!ip6_tnl_parm_match(p, &p1))
-			continue;
-		print_tunnel(&p1);
-		if (show_stats) {
-			printf("%s", _SL_);
-			printf("RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts%s", _SL_);
-			printf("    %-10ld %-12ld %-6ld %-8ld %-8ld %-8ld%s",
-			       rx_packets, rx_bytes, rx_errs, rx_frame, rx_fifo, rx_multi, _SL_);
-			printf("TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs%s", _SL_);
-			printf("    %-10ld %-12ld %-6ld %-8ld %-8ld %-6ld",
-			       tx_packets, tx_bytes, tx_errs, tx_colls, tx_carrier, tx_drops);
-		}
-		printf("\n");
-	}
-	err = 0;
-
- end:
-	if (fp)
-		fclose(fp);
-	return err;
-}
-
 static int do_show(int argc, char **argv)
 {
-        struct ip6_tnl_parm2 p;
+	struct ip6_tnl_parm2 p, p1;
 
-	ll_init_map(&rth);
 	ip6_tnl_parm_init(&p, 0);
 	p.proto = 0;  /* default to any */
 
-        if (parse_args(argc, argv, SIOCGETTUNNEL, &p) < 0)
-                return -1;
+	if (parse_args(argc, argv, SIOCGETTUNNEL, &p) < 0)
+		return -1;
 
-	if (!p.name[0] || show_stats)
-		do_tunnels_list(&p);
-	else {
-		if (tnl_get_ioctl(p.name, &p))
-			return -1;
-		print_tunnel(&p);
-		printf("\n");
+	if (!p.name[0] || show_stats) {
+		struct tnl_print_nlmsg_info info = {
+			.p1    = &p,
+			.p2    = &p1,
+			.init  = ip6_tnl_parm_initialize,
+			.match = ip6_tnl_parm_match,
+			.print = print_tunnel,
+		};
+
+		return do_tunnels_list(&info);
 	}
 
-        return 0;
+	if (tnl_get_ioctl(p.name, &p))
+		return -1;
+
+	print_tunnel(&p);
+	fputc('\n', stdout);
+	return 0;
 }
 
 static int do_add(int cmd, int argc, char **argv)

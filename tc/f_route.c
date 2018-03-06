@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <syslog.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +27,7 @@
 static void explain(void)
 {
 	fprintf(stderr, "Usage: ... route [ from REALM | fromif TAG ] [ to REALM ]\n");
-	fprintf(stderr, "                [ flowid CLASSID ] [ action ACTION_SPEC ]]\n");
+	fprintf(stderr, "                [ classid CLASSID ] [ action ACTION_SPEC ]\n");
 	fprintf(stderr, "       ACTION_SPEC := ... look at individual actions\n");
 	fprintf(stderr, "       CLASSID := X:Y\n");
 	fprintf(stderr, "\nNOTE: CLASSID is parsed as hexadecimal input.\n");
@@ -36,13 +35,10 @@ static void explain(void)
 
 static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char **argv, struct nlmsghdr *n)
 {
-	struct tc_police tp;
 	struct tcmsg *t = NLMSG_DATA(n);
 	struct rtattr *tail;
 	__u32 fh = 0xFFFF8000;
 	__u32 order = 0;
-
-	memset(&tp, 0, sizeof(tp));
 
 	if (handle) {
 		if (get_u32(&t->tcm_handle, handle, 0)) {
@@ -54,12 +50,12 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 	if (argc == 0)
 		return 0;
 
-	tail = NLMSG_TAIL(n);
-	addattr_l(n, 4096, TCA_OPTIONS, NULL, 0);
+	tail = addattr_nest(n, 4096, TCA_OPTIONS);
 
 	while (argc > 0) {
 		if (matches(*argv, "to") == 0) {
 			__u32 id;
+
 			NEXT_ARG();
 			if (rtnl_rtrealm_a2n(&id, *argv)) {
 				fprintf(stderr, "Illegal \"to\"\n");
@@ -70,6 +66,7 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 			fh |= id&0xFF;
 		} else if (matches(*argv, "from") == 0) {
 			__u32 id;
+
 			NEXT_ARG();
 			if (rtnl_rtrealm_a2n(&id, *argv)) {
 				fprintf(stderr, "Illegal \"from\"\n");
@@ -80,9 +77,10 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 			fh |= id<<16;
 		} else if (matches(*argv, "fromif") == 0) {
 			__u32 id;
+
 			NEXT_ARG();
 			ll_init_map(&rth);
-			if ((id=ll_name_to_index(*argv)) <= 0) {
+			if ((id = ll_name_to_index(*argv)) <= 0) {
 				fprintf(stderr, "Illegal \"fromif\"\n");
 				return -1;
 			}
@@ -91,7 +89,8 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 			fh |= (0x8000|id)<<16;
 		} else if (matches(*argv, "classid") == 0 ||
 			   strcmp(*argv, "flowid") == 0) {
-			unsigned handle;
+			unsigned int handle;
+
 			NEXT_ARG();
 			if (get_tc_classid(&handle, *argv)) {
 				fprintf(stderr, "Illegal \"classid\"\n");
@@ -128,7 +127,7 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 		}
 		argc--; argv++;
 	}
-	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
+	addattr_nest_end(n, tail);
 	if (order) {
 		fh &= ~0x7F00;
 		fh |= (order<<8)&0x7F00;
@@ -141,6 +140,7 @@ static int route_parse_opt(struct filter_util *qu, char *handle, int argc, char 
 static int route_print_opt(struct filter_util *qu, FILE *f, struct rtattr *opt, __u32 handle)
 {
 	struct rtattr *tb[TCA_ROUTE4_MAX+1];
+
 	SPRINT_BUF(b1);
 
 	if (opt == NULL)
@@ -162,11 +162,11 @@ static int route_print_opt(struct filter_util *qu, FILE *f, struct rtattr *opt, 
 	if (tb[TCA_ROUTE4_FROM])
 		fprintf(f, "from %s ", rtnl_rtrealm_n2a(rta_getattr_u32(tb[TCA_ROUTE4_FROM]), b1, sizeof(b1)));
 	if (tb[TCA_ROUTE4_IIF])
-		fprintf(f, "fromif %s", ll_index_to_name(*(int*)RTA_DATA(tb[TCA_ROUTE4_IIF])));
+		fprintf(f, "fromif %s", ll_index_to_name(rta_getattr_u32(tb[TCA_ROUTE4_IIF])));
 	if (tb[TCA_ROUTE4_POLICE])
 		tc_print_police(f, tb[TCA_ROUTE4_POLICE]);
 	if (tb[TCA_ROUTE4_ACT])
-		tc_print_action(f, tb[TCA_ROUTE4_ACT]);
+		tc_print_action(f, tb[TCA_ROUTE4_ACT], 0);
 	return 0;
 }
 
