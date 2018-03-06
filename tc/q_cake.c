@@ -404,43 +404,44 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_BASE_RATE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_BASE_RATE]) >= sizeof(__u32)) {
 		bandwidth = rta_getattr_u32(tb[TCA_CAKE_BASE_RATE]);
-		if(bandwidth)
-			fprintf(f, "bandwidth %s ", sprint_rate(bandwidth, b1));
-		else
-			fprintf(f, "unlimited ");
+		if(bandwidth) {
+			print_uint(PRINT_JSON, "bandwidth", NULL, bandwidth);
+			print_string(PRINT_FP, NULL, "bandwidth %s ", sprint_rate(bandwidth, b1));
+		} else
+			print_string(PRINT_ANY, "bandwidth", "bandwidth %s ", "unlimited");
 	}
 	if (tb[TCA_CAKE_AUTORATE] &&
 		RTA_PAYLOAD(tb[TCA_CAKE_AUTORATE]) >= sizeof(__u32)) {
 		autorate = rta_getattr_u32(tb[TCA_CAKE_AUTORATE]);
 		if(autorate == 1)
-			fprintf(f, "autorate_ingress ");
+			print_string(PRINT_ANY, "autorate", "autorate_%s ", "ingress");
 		else if(autorate)
-			fprintf(f, "(?autorate?) ");
+			print_string(PRINT_ANY, "autorate", "(?autorate?) ", "unknown");
 	}
 	if (tb[TCA_CAKE_DIFFSERV_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
 		diffserv = rta_getattr_u32(tb[TCA_CAKE_DIFFSERV_MODE]);
 		switch(diffserv) {
 		case 1:
-			fprintf(f, "besteffort ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "besteffort");
 			break;
 		case 2:
-			fprintf(f, "precedence ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "precedence");
 			break;
 		case 3:
-			fprintf(f, "diffserv8 ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv8");
 			break;
 		case 4:
-			fprintf(f, "diffserv4 ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv4");
 			break;
 		case 5:
-			fprintf(f, "diffserv-llt ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv-llt");
 			break;
 		case 6:
-			fprintf(f, "diffserv3 ");
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv3");
 			break;
 		default:
-			fprintf(f, "(?diffserv?) ");
+			print_string(PRINT_ANY, "diffserv", "(?diffserv?) ", "unknown");
 			break;
 		};
 	}
@@ -451,36 +452,37 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		flowmode &= ~64;
 		switch(flowmode) {
 		case 0:
-			fprintf(f, "flowblind ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "flowblind");
 			break;
 		case 1:
-			fprintf(f, "srchost ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "srchost");
 			break;
 		case 2:
-			fprintf(f, "dsthost ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "dsthost");
 			break;
 		case 3:
-			fprintf(f, "hosts ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "hosts");
 			break;
 		case 4:
-			fprintf(f, "flows ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "flows");
 			break;
 		case 5:
-			fprintf(f, "dual-srchost ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "dual-srchost");
 			break;
 		case 6:
-			fprintf(f, "dual-dsthost ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "dual-dsthost");
 			break;
 		case 7:
-			fprintf(f, "triple-isolate ");
+			print_string(PRINT_ANY, "flowmode", "%s ", "triple-isolate");
 			break;
 		default:
-			fprintf(f, "(?flowmode?) ");
+			print_string(PRINT_ANY, "flowmode", "(?flowmode?) ", "unknown");
 			break;
 		};
 
 		if(nat)
-			fprintf(f, "nat ");
+			print_string(PRINT_FP, NULL, "nat ", NULL);
+		print_bool(PRINT_JSON, "nat", NULL, nat);
 	}
 	if (tb[TCA_CAKE_WASH] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_WASH]) >= sizeof(__u32)) {
@@ -515,36 +517,44 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	}
 
 	if (wash)
-		fprintf(f,"wash ");
+		print_string(PRINT_FP, NULL, "wash ", NULL);
+	print_bool(PRINT_JSON, "wash", NULL, wash);
 
 	if (ingress)
-		fprintf(f,"ingress ");
+		print_string(PRINT_FP, NULL, "ingress ", NULL);
+	print_bool(PRINT_JSON, "ingress", NULL, ingress);
 
 	if (ack_filter == 0x0600)
-		fprintf(f,"ack-filter-aggressive ");
+		print_string(PRINT_ANY, "ack-filter", "ack-filter-%s ", "aggressive");
 	else if (ack_filter)
-		fprintf(f,"ack-filter ");
+		print_string(PRINT_ANY, "ack-filter", "ack-filter ", "enabled");
+	else
+		print_string(PRINT_JSON, "ack-filter", NULL, "disabled");
 
 	if (interval)
-		fprintf(f, "rtt %s ", sprint_time(interval, b2));
+		print_string(PRINT_FP, NULL, "rtt %s ", sprint_time(interval, b2));
+	print_uint(PRINT_JSON, "rtt", NULL, interval);
 
 	if (raw)
-		fprintf(f, "raw ");
+		print_string(PRINT_FP, NULL, "raw ", NULL);
+	print_bool(PRINT_JSON, "raw", NULL, raw);
 
 	if (atm == 1)
-		fprintf(f, "atm ");
+		print_string(PRINT_ANY, "atm", "%s ", "atm");
 	else if (atm == 2)
-		fprintf(f, "ptm ");
+		print_string(PRINT_ANY, "atm", "%s ", "ptm");
 	else if (!raw)
-		fprintf(f, "noatm ");
+		print_string(PRINT_ANY, "atm", "%s ", "noatm");
 
-	fprintf(f, "overhead %d ", overhead);
+	print_uint(PRINT_ANY, "overhead", "overhead %d", overhead);
 
 	if (mpu)
-		fprintf(f, "mpu %d ", mpu);
+		print_uint(PRINT_ANY, "mpu", "mpu %d ", mpu);
 
-	if (memlimit)
-		fprintf(f, "memlimit %s", sprint_size(memlimit, b1));
+	if (memlimit) {
+		print_uint(PRINT_JSON, "memlimit", NULL, memlimit);
+		print_string(PRINT_FP, NULL, "memlimit %s", sprint_size(memlimit, b1));
+	}
 
 	return 0;
 }
