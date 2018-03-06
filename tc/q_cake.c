@@ -564,13 +564,36 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	i < xstats->tin_cnt;						\
 	    i++, tst = ((void *) xstats->tin_stats) + xstats->tin_stats_size * i)
 
+static void cake_print_json_tin(struct tc_cake_tin_stats *tst)
+{
+	open_json_object(NULL);
+	print_uint(PRINT_JSON, "threshold_rate", NULL, tst->threshold_rate);
+	print_uint(PRINT_JSON, "target", NULL, tst->target_us);
+	print_uint(PRINT_JSON, "interval", NULL, tst->interval_us);
+	print_uint(PRINT_JSON, "peak_delay", NULL, tst->peak_delay_us);
+	print_uint(PRINT_JSON, "average_delay", NULL, tst->avge_delay_us);
+	print_uint(PRINT_JSON, "base_delay", NULL, tst->base_delay_us);
+	print_uint(PRINT_JSON, "sent_packets", NULL, tst->sent.packets);
+	print_uint(PRINT_JSON, "sent_bytes", NULL, tst->sent.bytes);
+	print_uint(PRINT_JSON, "way_indirect_hits", NULL, tst->way_indirect_hits);
+	print_uint(PRINT_JSON, "way_misses", NULL, tst->way_misses);
+	print_uint(PRINT_JSON, "way_collisions", NULL, tst->way_collisions);
+	print_uint(PRINT_JSON, "drops", NULL, tst->dropped.packets);
+	print_uint(PRINT_JSON, "ecn_mark", NULL, tst->ecn_marked.packets);
+	print_uint(PRINT_JSON, "ack_drops", NULL, tst->ack_drops.packets);
+	print_uint(PRINT_JSON, "sparse_flows", NULL, tst->sparse_flows);
+	print_uint(PRINT_JSON, "bulk_flows", NULL, tst->bulk_flows);
+	print_uint(PRINT_JSON, "unresponsive_flows", NULL, tst->unresponse_flows);
+	print_uint(PRINT_JSON, "max_pkt_len", NULL, tst->max_skblen);
+	close_json_object();
+}
+
 static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			     struct rtattr *xstats)
 {
 	struct tc_cake_xstats     *stnc;
 	struct tc_cake_tin_stats  *tst;
 	SPRINT_BUF(b1);
-	SPRINT_BUF(b2);
 	int i;
 
 	if (xstats == NULL)
@@ -586,9 +609,34 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 				    stnc->tin_stats_size * stnc->tin_cnt))
 		return -1;
 
+	print_uint(PRINT_JSON, "memory_used", NULL, stnc->memory_used);
+	print_uint(PRINT_JSON, "memory_limit", NULL, stnc->memory_limit);
+	print_uint(PRINT_JSON, "capacity_estimate", NULL, stnc->capacity_estimate);
 
-	fprintf(f, " memory used: %s of %s\n", sprint_size(stnc->memory_used, b1), sprint_size(stnc->memory_limit, b2));
-	fprintf(f, " capacity estimate: %s\n", sprint_rate(stnc->capacity_estimate, b1));
+	print_string(PRINT_FP, NULL, " memory used: %s",
+		sprint_size(stnc->memory_used, b1));
+	print_string(PRINT_FP, NULL, " of %s\n",
+		sprint_size(stnc->memory_limit, b1));
+	print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
+		sprint_rate(stnc->capacity_estimate, b1));
+
+	print_uint(PRINT_ANY, "min_transport_size", " min/max transport layer size: %10u",
+		stnc->min_trnlen);
+	print_uint(PRINT_ANY, "max_transport_size", " /%8u\n", stnc->max_trnlen);
+	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8u",
+		stnc->min_adjlen);
+	print_uint(PRINT_ANY, "max_adj_size", " /%8u\n", stnc->max_adjlen);
+	print_uint(PRINT_ANY, "avg_hdr_offset", " average transport hdr offset: %10u\n\n",
+		stnc->avg_trnoff);
+
+	if (is_json_context()) {
+		open_json_array(PRINT_JSON, "tins");
+		FOR_EACH_TIN(stnc, tst, i)
+			cake_print_json_tin(tst);
+		close_json_array(PRINT_JSON, NULL);
+		return 0;
+	}
+
 
 	switch(stnc->tin_cnt) {
 	case 3:
@@ -698,26 +746,6 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	fprintf(f, "  max_len ");
 	FOR_EACH_TIN(stnc, tst, i)
 		fprintf(f, "%12u", tst->max_skblen);
-	fprintf(f, "\n");
-
-	fprintf(f, "  max_tran");
-	fprintf(f, "%12u", stnc->max_trnlen);
-	fprintf(f, "\n");
-
-	fprintf(f, "  max_adj ");
-	fprintf(f, "%12u", stnc->max_adjlen);
-	fprintf(f, "\n");
-
-	fprintf(f, "  min_tran");
-	fprintf(f, "%12u", stnc->min_trnlen);
-	fprintf(f, "\n");
-
-	fprintf(f, "  min_adj ");
-	fprintf(f, "%12u", stnc->min_adjlen);
-	fprintf(f, "\n");
-
-	fprintf(f, "  avg_off ");
-	fprintf(f, "%12u", stnc->avg_trnoff);
 	fprintf(f, "\n");
 
 	return 0;
