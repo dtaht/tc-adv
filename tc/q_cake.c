@@ -243,12 +243,22 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		/* Typical VDSL2 framing schemes, both over PTM */
 		/* PTM has 64b/65b coding which absorbs some bandwidth */
 		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
+			/* 2B PPP + 6B PPPoE + 6B dest MAC + 6B src MAC
+			 * + 2B ethertype + 4B Frame Check Sequence
+			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
+			 * + 2B TC-CRC (PTM-FCS) = 30B
+			 */
 			atm = 2;
-			overhead += 27;
+			overhead += 30;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
+			/* 6B dest MAC + 6B src MAC + 2B ethertype
+			 * + 4B Frame Check Sequence
+			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
+			 * + 2B TC-CRC (PTM-FCS) = 22B
+			 */
 			atm = 2;
-			overhead += 19;
+			overhead += 22;
 			overhead_set = true;
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
@@ -261,7 +271,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * that automatically, and is thus ignored.
 			 *
 			 * It would be deleted entirely, but it appears in the
-			 * stats output when the automatic compensation is active.
+			 * stats output when the automatic compensation is
+			 * active.
 			 */
 
 		} else if (strcmp(*argv, "ethernet") == 0) {
@@ -279,7 +290,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 
 		/*
 		 * DOCSIS cable shapers account for Ethernet frame with FCS,
-		 * but not interframe gap nor preamble.
+		 * but not interframe gap or preamble.
 		 */
 		} else if (strcmp(*argv, "docsis") == 0) {
 			atm = 0;
