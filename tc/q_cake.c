@@ -546,7 +546,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	else if (!raw)
 		print_string(PRINT_ANY, "atm", "%s ", "noatm");
 
-	print_uint(PRINT_ANY, "overhead", "overhead %d", overhead);
+	print_uint(PRINT_ANY, "overhead", "overhead %d ", overhead);
 
 	if (mpu)
 		print_uint(PRINT_ANY, "mpu", "mpu %d ", mpu);
