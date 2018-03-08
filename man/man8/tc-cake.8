@@ -1,113 +1,131 @@
-.TH CAKE 8 "15 October 2015" "iproute2" "Linux"
+.TH CAKE 8 "23 November 2017" "iproute2" "Linux"
 .SH NAME
 CAKE \- COMMON Applications Kept Enhanced (CAKE)
 .SH SYNOPSIS
 .B tc qdisc ... cake
 .br
-	[
-.B bandwidth RATE
+[
+.BR bandwidth
+RATE |
+.BR unlimited*
 |
-.B unlimited
-|
-.B autorate_ingress
+.BR autorate_ingress
 ]
 .br
-	[
-.B rtt
+[
+.BR rtt
 TIME |
-.B datacenter
+.BR datacentre
 |
-.B lan
+.BR lan
 |
-.B metro
+.BR metro
 |
-.B regional
+.BR regional
 |
-.B internet
+.BR internet*
 |
-.B oceanic
+.BR oceanic
 |
-.B satellite
+.BR satellite
 |
-.B interplanetary
+.BR interplanetary
 ]
 .br
-	[
-.B besteffort
+[
+.BR besteffort
 |
-.B squash
+.BR diffserv8
 |
-.B precedence
+.BR diffserv4
 |
-.B diffserv8
+.BR diffserv-llt
 |
-.B diffserv4
-|
-.B diffserv3
-|
-.B diffserv-llt
+.BR diffserv3*
 ]
 .br
-	[
-.B flowblind
+[
+.BR flowblind
 |
-.B srchost
+.BR srchost
 |
-.B dsthost
+.BR dsthost
 |
-.B hosts
+.BR hosts
 |
-.B flows
+.BR flows
 |
-.B dual-srchost
+.BR dual-srchost
 |
-.B dual-dsthost
+.BR dual-dsthost
 |
-.B triple-isolate
+.BR triple-isolate*
 ]
 .br
-	[
-.B nat
+[
+.BR nat
 |
-.B nonat
+.BR nonat*
 ]
 .br
-	[
-.B ptm
+[
+.BR wash
 |
-.B atm
-|
-.B noatm
+.BR nowash*
 ]
 .br
-	[
-.B overhead BYTES
+[
+.BR ack-filter
 |
-.B conservative
+.BR ack-filter-aggressive
 |
-.B raw
+.BR no-ack-filter*
 ]
 .br
-	[
-.B mpu
-BYTES
+[
+.BR memlimit
+LIMIT ]
+.br
+[
+.BR ptm
+|
+.BR atm
+|
+.BR noatm*
 ]
 .br
-	[
-.B memlimit
-SIZE
+[
+.BR overhead
+N |
+.BR conservative
+|
+.BR raw*
 ]
+.br
+[
+.BR mpu
+N ]
+.br
+[
+.BR ingress
+|
+.BR egress*
+]
+.br
+(* marks defaults)
+
 
 .SH DESCRIPTION
-CAKE (Common Applications Kept Enhanced) is a shaping queue discipline which uses both AQM and FQ.
-It combines COBALT, which is an AQM algorithm combining Codel and BLUE,
-a shaper which operates in deficit mode, and a variant of DRR for flow isolation.
-An 8-way set-associative hashing is used to virtually eliminate hash collisions.
-Priority queuing is available through a simplified diffserv implementation.
-Overhead compensation for various encapsulation schemes is tightly integrated.
+CAKE (Common Applications Kept Enhanced) is a shaping-capable queue discipline
+which uses both AQM and FQ.  It combines COBALT, which is an AQM algorithm
+combining Codel and BLUE, a shaper which operates in deficit mode, and a variant
+of DRR++ for flow isolation.  8-way set-associative hashing is used to virtually
+eliminate hash collisions.  Priority queuing is available through a simplified
+diffserv implementation.  Overhead compensation for various encapsulation
+schemes is tightly integrated.
 
-All settings are optional; the default settings are chosen to be sensible in most common deployments.
-Most people will only need to set the
+All settings are optional; the default settings are chosen to be sensible in
+most common deployments.  Most people will only need to set the
 .B bandwidth
 parameter to get useful results, but reading the
 .B Overhead Compensation
@@ -115,11 +133,11 @@ and
 .B Round Trip Time
 sections is strongly encouraged.
 
-
 .SH SHAPER PARAMETERS
-CAKE uses a deficit-mode shaper, which does not exhibit the initial burst typical of token-bucket shapers.
-It will automatically burst precisely as much as required to maintain the configured throughput.
-As such, it is very straightforward to configure.
+CAKE uses a deficit-mode shaper, which does not exhibit the initial burst
+typical of token-bucket shapers.  It will automatically burst precisely as much
+as required to maintain the configured throughput.  As such, it is very
+straightforward to configure.
 .PP
 .B unlimited
 (default)
@@ -136,67 +154,80 @@ or examples below for details of the RATE value.
 .B autorate_ingress
 .br
 	Automatic capacity estimation based on traffic arriving at this qdisc.
-This is most likely to be useful with cellular links, which tend to change quality randomly.  A
+This is most likely to be useful with cellular links, which tend to change
+quality randomly.  A
 .B bandwidth
-parameter can be used in conjunction to specify an initial estimate.
-The shaper will periodically be set to a bandwidth slightly below the estimated rate.
-This estimator cannot estimate the bandwidth of links downstream of itself.
+parameter can be used in conjunction to specify an initial estimate.  The shaper
+will periodically be set to a bandwidth slightly below the estimated rate.  This
+estimator cannot estimate the bandwidth of links downstream of itself.
 
 .SH OVERHEAD COMPENSATION PARAMETERS
-The size of each packet on the wire may differ from that seen by Linux.
-The following parameters allow CAKE to compensate for this difference by internally considering
-each packet to be bigger than Linux informs it.
-To assist users who are not expert network engineers, keywords have been provided
-to represent a number of common link technologies.
+The size of each packet on the wire may differ from that seen by Linux.  The
+following parameters allow CAKE to compensate for this difference by internally
+considering each packet to be bigger than Linux informs it.  To assist users who
+are not expert network engineers, keywords have been provided to represent a
+number of common link technologies.
 
 .SS	Manual Overhead Specification
 .B overhead
 BYTES
 .br
-	Adds BYTES to the size of each packet.  BYTES may be negative; values between -64 and 256 (inclusive) are accepted.
+	Adds BYTES to the size of each packet.  BYTES may be negative; values
+between -64 and 256 (inclusive) are accepted.
 .PP
 .B mpu
 BYTES
 .br
-	Rounds each packet (including overhead) up to a minimum length BYTES. BYTES may not be negative; values between 0 and 256 (inclusive) are accepted.
+	Rounds each packet (including overhead) up to a minimum length
+BYTES. BYTES may not be negative; values between 0 and 256 (inclusive)
+are accepted.
 .PP
 .B atm
 .br
-	Compensates for ATM cell framing, which is normally found on ADSL links.  This is performed after the
+	Compensates for ATM cell framing, which is normally found on ADSL links.
+This is performed after the
 .B overhead
-parameter above.  ATM uses fixed 53-byte cells, each of which can carry 48 bytes payload.
+parameter above.  ATM uses fixed 53-byte cells, each of which can carry 48 bytes
+payload.
 .PP
 .B ptm
 .br
-	Compensates for PTM encoding, which is normally found on VDSL2 links and uses a 64b/65b encoding scheme.
+	Compensates for PTM encoding, which is normally found on VDSL2 links and
+uses a 64b/65b encoding scheme. It is even more efficient to simply
+derate the specified shaper bandwidth by a factor of 64/65 or 0.984. See
+ITU G.992.3 Annex N and IEEE 802.3 Section 61.3 for details.
 .PP
 .B noatm
 .br
 	Disables ATM and PTM compensation.
 
 .SS	Failsafe Overhead Keywords
-These two keywords are provided for quick-and-dirty setup.  Use them if you can't be bothered to read the rest of this section.
+These two keywords are provided for quick-and-dirty setup.  Use them if you
+can't be bothered to read the rest of this section.
 .PP
 .B raw
 (default)
 .br
-	Turns off all overhead compensation in CAKE.  The packet size reported by Linux will be used directly.
+	Turns off all overhead compensation in CAKE.  The packet size reported
+by Linux will be used directly.
 .PP
-	Other overhead keywords may be added after "raw".  The effect of this is to make the overhead compensation operate
-relative to the reported packet size, not the underlying IP packet size.
+	Other overhead keywords may be added after "raw".  The effect of this is
+to make the overhead compensation operate relative to the reported packet size,
+not the underlying IP packet size.
 .PP
 .B conservative
 .br
-	Compensates for more overhead than is likely to occur on any widely-deployed link technology.
+	Compensates for more overhead than is likely to occur on any
+widely-deployed link technology.
 .br
 	Equivalent to
 .B overhead 48 atm.
 
 .SS ADSL Overhead Keywords
-Most ADSL modems have a way to check which framing scheme is in use.
-Often this is also specified in the settings document provided by the ISP.
-The keywords in this section are intended to correspond with these sources of information.
-All of them implicitly set the
+Most ADSL modems have a way to check which framing scheme is in use.  Often this
+is also specified in the settings document provided by the ISP.  The keywords in
+this section are intended to correspond with these sources of information.  All
+of them implicitly set the
 .B atm
 flag.
 .PP
@@ -243,26 +274,42 @@ flag.
 See also the Ethernet Correction Factors section below.
 
 .SS VDSL2 Overhead Keywords
-ATM was dropped from VDSL2 in favour of PTM, which is a much more straightforward framing scheme.
-Some ISPs retained PPPoE for compatibility with their existing back-end systems.
+ATM was dropped from VDSL2 in favour of PTM, which is a much more
+straightforward framing scheme.  Some ISPs retained PPPoE for compatibility with
+their existing back-end systems.
 .PP
 .B pppoe-ptm
 .br
 	Equivalent to
-.B overhead 27 ptm
+.B overhead 30 ptm
+
+.br
+	PPPoE: 2B PPP + 6B PPPoE +
+.br
+	ETHERNET: 6B dest MAC + 6B src MAC + 2B ethertype + 4B Frame Check Sequence +
+.br
+	PTM: 1B Start of Frame (S) + 1B End of Frame (Ck) + 2B TC-CRC (PTM-FCS)
+.br
 .PP
 .B bridged-ptm
 .br
 	Equivalent to
-.B overhead 19 ptm
+.B overhead 22 ptm
+.br
+	ETHERNET: 6B dest MAC + 6B src MAC + 2B ethertype + 4B Frame Check Sequence +
+.br
+	PTM: 1B Start of Frame (S) + 1B End of Frame (Ck) + 2B TC-CRC (PTM-FCS)
+.br
 .PP
 See also the Ethernet Correction Factors section below.
 
 .SS DOCSIS Cable Overhead Keyword
-DOCSIS is the universal standard for providing Internet service over cable-TV infrastructure.
+DOCSIS is the universal standard for providing Internet service over cable-TV
+infrastructure.
 
-In this case, the actual on-wire overhead is less important than the packet size the head-end equipment uses for shaping and metering.
-This is specified to be an Ethernet frame including the CRC (aka FCS).
+In this case, the actual on-wire overhead is less important than the packet size
+the head-end equipment uses for shaping and metering.  This is specified to be
+an Ethernet frame including the CRC (aka FCS).
 .PP
 .B docsis
 .br
@@ -273,40 +320,53 @@ This is specified to be an Ethernet frame including the CRC (aka FCS).
 .PP
 .B ethernet
 .br
-	Accounts for Ethernet's preamble, inter-frame gap, and Frame Check Sequence.  Use this keyword when the bottleneck being shaped for is an actual Ethernet cable.
+	Accounts for Ethernet's preamble, inter-frame gap, and Frame Check
+Sequence.  Use this keyword when the bottleneck being shaped for is an
+actual Ethernet cable.
 .br
 	Equivalent to
 .B overhead 38 mpu 84 noatm
 .PP
 .B ether-vlan
 .br
-	Adds 4 bytes to the overhead compensation, accounting for a VLAN header appended to the Ethernet frame header.  NB: Some ISPs use one or even two of these within PPPoE; this keyword may be repeated as necessary to express this.
+	Adds 4 bytes to the overhead compensation, accounting for an IEEE 802.1Q
+VLAN header appended to the Ethernet frame header.  NB: Some ISPs use one or
+even two of these within PPPoE; this keyword may be repeated as necessary to
+express this.
 
 .SH ROUND TRIP TIME PARAMETERS
-Active Queue Management (AQM) consists of embedding congestion signals in the packet flow, which
-receivers use to instruct senders to slow down when the queue is persistently occupied.  CAKE
-uses ECN signalling when available, and packet drops otherwise, according to a combination of the
-Codel and BLUE AQM algorithms called COBALT.
+Active Queue Management (AQM) consists of embedding congestion signals in the
+packet flow, which receivers use to instruct senders to slow down when the queue
+is persistently occupied.  CAKE uses ECN signalling when available, and packet
+drops otherwise, according to a combination of the Codel and BLUE AQM algorithms
+called COBALT.
 
-Very short latencies require a very rapid AQM response to adequately control latency.
-However, such a rapid response tends to impair throughput when the actual RTT is relatively long.
-CAKE allows specifying the RTT it assumes for tuning various parameters.  Actual RTTs within
-an order of magnitude of this will generally work well for both throughput and latency management.
+Very short latencies require a very rapid AQM response to adequately control
+latency.  However, such a rapid response tends to impair throughput when the
+actual RTT is relatively long.  CAKE allows specifying the RTT it assumes for
+tuning various parameters.  Actual RTTs within an order of magnitude of this
+will generally work well for both throughput and latency management.
+
+At the 'lan' setting and below, the time constants are similar in magnitude to
+the jitter in the Linux kernel itself, so congestion might be signalled
+prematurely. The flows will then become sparse and total throughput reduced,
+leaving little or no back-pressure for the fairness logic to work against. Use
+the "metro" setting for local lans unless you have a custom kernel.
 .PP
 .B rtt
 TIME
 .br
 	Manually specify an RTT.
 .PP
-.B datacenter
+.B datacentre
 .br
-	For extremely high-performance networks only.  Equivalent to
+	For extremely high-performance 10GigE+ networks only.  Equivalent to
 .B rtt 100us.
 .PP
 .B lan
 .br
-	For typical Ethernet and Wi-Fi networks, at home or in the office.  Don't use this
-when shaping for an Internet access link.  Equivalent to
+	For pure Ethernet (not Wi-Fi) networks, at home or in the office.  Don't
+use this when shaping for an Internet access link.  Equivalent to
 .B rtt 1ms.
 .PP
 .B metro
@@ -322,12 +382,13 @@ when shaping for an Internet access link.  Equivalent to
 .B internet
 (default)
 .br
-	This is suitable for typical Internet traffic.  Equivalent to
+	This is suitable for most Internet traffic.  Equivalent to
 .B rtt 100ms.
 .PP
 .B oceanic
 .br
-	For Internet traffic with generally above-average latency, such as that suffered by Australasian residents.  Equivalent to
+	For Internet traffic with generally above-average latency, such as that
+suffered by Australasian residents.  Equivalent to
 .B rtt 300ms.
 .PP
 .B satellite
@@ -337,81 +398,95 @@ when shaping for an Internet access link.  Equivalent to
 .PP
 .B interplanetary
 .br
-	So named because Jupiter is about 1 light-hour from Earth.  Use this to (almost) completely disable AQM actions.  Equivalent to
-.B rtt 1000s.
+	So named because Jupiter is about 1 light-hour from Earth.  Use this to
+(almost) completely disable AQM actions.  Equivalent to
+.B rtt 3600s.
 
 .SH FLOW ISOLATION PARAMETERS
-With flow isolation enabled, CAKE places packets from different flows into different queues,
-each of which carries its own AQM state.  Packets from each queue are then delivered fairly,
-according to a DRR++ algorithm which minimises latency for "sparse" flows.  CAKE uses a set-associative
-hashing algorithm to minimise flow collisions.
+With flow isolation enabled, CAKE places packets from different flows into
+different queues, each of which carries its own AQM state.  Packets from each
+queue are then delivered fairly, according to a DRR++ algorithm which minimises
+latency for "sparse" flows.  CAKE uses a set-associative hashing algorithm to
+minimise flow collisions.
 
-These keywords specify whether fairness based on source address, destination address,
-individual flows, or any combination of those is desired.
+These keywords specify whether fairness based on source address, destination
+address, individual flows, or any combination of those is desired.
 .PP
 .B flowblind
 .br
-	Disables flow isolation; all traffic passes through a single queue for each tin.
+	Disables flow isolation; all traffic passes through a single queue for
+each tin.
 .PP
 .B srchost
 .br
-	Flows are defined only by source address.  Could be useful on the egress path of an ISP backhaul.
+	Flows are defined only by source address.  Could be useful on the egress
+path of an ISP backhaul.
 .PP
 .B dsthost
 .br
-	Flows are defined only by destination address.  Could be useful on the ingress path of an ISP backhaul.
+	Flows are defined only by destination address.  Could be useful on the
+ingress path of an ISP backhaul.
 .PP
 .B hosts
 .br
-	Flows are defined by source-destination host pairs.  This is host isolation, rather than flow isolation.
+	Flows are defined by source-destination host pairs.  This is host
+isolation, rather than flow isolation.
 .PP
 .B flows
 .br
-	Flows are defined by the entire 5-tuple of source address, destination address, transport
-protocol, source port and destination port.  This is the type of flow isolation performed by
-SFQ and fq_codel.
+	Flows are defined by the entire 5-tuple of source address, destination
+address, transport protocol, source port and destination port.  This is the type
+of flow isolation performed by SFQ and fq_codel.
 .PP
 .B dual-srchost
 .br
-	Flows are defined by the 5-tuple, and fairness is applied first over source addresses, then
-over individual flows.  Good for use on egress traffic from a LAN to the internet, where it'll
-prevent any one LAN host from monopolising the uplink, regardless of the number of flows they use.
+	Flows are defined by the 5-tuple, and fairness is applied first over
+source addresses, then over individual flows.  Good for use on egress traffic
+from a LAN to the internet, where it'll prevent any one LAN host from
+monopolising the uplink, regardless of the number of flows they use.
 .PP
 .B dual-dsthost
 .br
-	Flows are defined by the 5-tuple, and fairness is applied first over destination addresses, then
-over individual flows.  Good for use on ingress traffic to a LAN from the internet, where it'll
-prevent any one LAN host from monopolising the downlink, regardless of the number of flows they use.
+	Flows are defined by the 5-tuple, and fairness is applied first over
+destination addresses, then over individual flows.  Good for use on ingress
+traffic to a LAN from the internet, where it'll prevent any one LAN host from
+monopolising the downlink, regardless of the number of flows they use.
 .PP
 .B triple-isolate
 (default)
 .br
-	Flows are defined by the 5-tuple, and fairness is applied over source *and* destination addresses
-intelligently (ie. not merely by host-pairs), and also over individual flows.  Use this if you're
-not certain whether to use dual-srchost or dual-dsthost; it'll do both jobs at once, preventing
-any one host on *either* side of the link from monopolising it with a large number of flows.
+	Flows are defined by the 5-tuple, and fairness is applied over source
+*and* destination addresses intelligently (ie. not merely by host-pairs), and
+also over individual flows.  Use this if you're not certain whether to use
+dual-srchost or dual-dsthost; it'll do both jobs at once, preventing any one
+host on *either* side of the link from monopolising it with a large number of
+flows.
 .PP
 .B nat
 .br
-	Instructs Cake to perform a NAT lookup before applying flow-isolation rules, to determine the true
-addresses and port numbers of the packet, to improve fairness between hosts "inside" the NAT.  This
-has no practical effect in "flowblind" or "flows" modes, or if NAT is performed on a different host.
+	Instructs Cake to perform a NAT lookup before applying flow-isolation
+rules, to determine the true addresses and port numbers of the packet, to
+improve fairness between hosts "inside" the NAT.  This has no practical effect
+in "flowblind" or "flows" modes, or if NAT is performed on a different host.
 .PP
 .B nonat
 (default)
 .br
-	Cake will not perform a NAT lookup.  Flow isolation will be performed using the addresses and
-port numbers directly visible to the interface Cake is attached to.
+	Cake will not perform a NAT lookup.  Flow isolation will be performed
+using the addresses and port numbers directly visible to the interface Cake is
+attached to.
 
 .SH PRIORITY QUEUE PARAMETERS
-CAKE can divide traffic into "tins" based on the Diffserv field.  Each tin has its own independent
-set of flow-isolation queues, and is serviced based on a WRR algorithm.  To avoid perverse Diffserv
-marking incentives, tin weights have a "priority sharing" value when bandwidth used by that tin is
-below a threshold, and a lower "bandwidth sharing" value when above.  Bandwidth is compared against
+CAKE can divide traffic into "tins" based on the Diffserv field.  Each tin has
+its own independent set of flow-isolation queues, and is serviced based on a WRR
+algorithm.  To avoid perverse Diffserv marking incentives, tin weights have a
+"priority sharing" value when bandwidth used by that tin is below a threshold,
+and a lower "bandwidth sharing" value when above.  Bandwidth is compared against
 the threshold using the same algorithm as the deficit-mode shaper.
 
-Detailed customisation of tin parameters is not provided.  The following presets perform all necessary
-tuning, relative to the current shaper bandwidth and RTT settings.
+Detailed customisation of tin parameters is not provided.  The following presets
+perform all necessary tuning, relative to the current shaper bandwidth and RTT
+settings.
 .PP
 .B besteffort
 .br
@@ -419,7 +494,8 @@ tuning, relative to the current shaper bandwidth and RTT settings.
 .PP
 .B precedence
 .br
-	Enables legacy interpretation of TOS "Precedence" field.  Use of this preset on the modern Internet is firmly discouraged.
+	Enables legacy interpretation of TOS "Precedence" field.  Use of this
+preset on the modern Internet is firmly discouraged.
 .PP
 .B diffserv-llt
 .br
@@ -462,60 +538,130 @@ tuning, relative to the current shaper bandwidth and RTT settings.
 .B memlimit
 LIMIT
 .br
-	Limit the memory consumed by Cake to LIMIT bytes. Note that this does not
-translate directly to queue size, as there is some overhead in the data
-structures containing the packets, especially for small packets.
+	Limit the memory consumed by Cake to LIMIT bytes. Note that this does
+not translate directly to queue size (so do not size this based on bandwidth
+delay product considerations, but rather on worst case acceptable memory
+consumption), as there is some overhead in the data structures containing the
+packets, especially for small packets.
 
-	By default, the limit is calculated based on the bandwidth and RTT settings.
+	By default, the limit is calculated based on the bandwidth and RTT
+settings.
 
+.PP
+.B wash
+
+.br
+	Traffic entering your diffserv domain is frequently mis-marked in
+transit from the perspective of your network, and traffic exiting yours may be
+mis-marked from the perspective of the transiting provider.
+
+Apply the wash option to clear all extra diffserv (but not ECN bits), after
+priority queuing has taken place.
+
+If you are shaping inbound, and cannot trust the diffserv markings (as is the
+case for Comcast Cable, among others), it is best to use a single queue
+"besteffort" mode with wash.
 
 .SH EXAMPLES
-#tc qdisc add dev enp3s0 root cake bandwidth 30mbit
+# tc qdisc delete root dev eth0
 .br
-#tc -s qdisc show dev enp3s0
+# tc qdisc add root dev eth0 cake bandwidth 9500Kbit pppoe-ptm ether-vlan
 .br
-qdisc cake 8001: root refcnt 2 bandwidth 30Mbit diffserv4 flows rtt 100.0ms raw
+# tc -s qdisc show dev eth0
+.br
+qdisc cake 8007: root refcnt 6 bandwidth 9500Kbit diffserv3 triple-isolate rtt 100.0ms ptm overhead 34 via-ethernet total_overhead 34 hard_header_len 14
  Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0)
  backlog 0b 0p requeues 0
-capacity estimate: 30Mbit
+ memory used: 0b of 4Mb
+ capacity estimate: 9500Kbit
 .br
-             Tin 0       Tin 1       Tin 2       Tin 3
+                 Bulk   Best Effort      Voice
 .br
-  thresh      30Mbit   28125Kbit   22500Kbit    7500Kbit
+  thresh     593744bit    9500Kbit    2375Kbit
 .br
-  target       5.0ms       5.0ms       5.0ms       5.0ms
+  target        30.6ms       5.0ms       7.6ms
 .br
-interval     100.0ms     100.0ms     100.0ms     100.0ms
+  interval     125.6ms     100.0ms     102.6ms
 .br
-Pk-delay         0us         0us         0us         0us
+  pk_delay         0us         0us         0us
 .br
-Av-delay         0us         0us         0us         0us
+  av_delay         0us         0us         0us
 .br
-Sp-delay         0us         0us         0us         0us
+  sp_delay         0us         0us         0us
 .br
-  pkts             0           0           0           0
+  pkts               0           0           0
 .br
-  bytes            0           0           0           0
+  bytes              0           0           0
 .br
-way-inds           0           0           0           0
+  way_inds           0           0           0
 .br
-way-miss           0           0           0           0
+  way_miss           0           0           0
 .br
-way-cols           0           0           0           0
+  way_cols           0           0           0
 .br
-  drops            0           0           0           0
+  drops              0           0           0
 .br
-  marks            0           0           0           0
+  marks              0           0           0
 .br
-Sp-flows           0           0           0           0
+  ack_drop           0           0           0
 .br
-Bk-flows           0           0           0           0
+  sp_flows           0           0           0
 .br
-last-len           0           0           0           0
+  bk_flows           0           0           0
 .br
-max-len            0           0           0           0
+  un_flows           0           0           0
+.br
+  max_len            0           0           0
 .br
 
+After some use:
+.br
+# tc -s qdisc show dev eth0
+
+qdisc cake 8007: root refcnt 6 bandwidth 9500Kbit diffserv3 triple-isolate rtt 100.0ms ptm overhead 34 via-ethernet total_overhead 34 hard_header_len 14
+ Sent 110769306 bytes 313857 pkt (dropped 18, overlimits 741791 requeues 0)
+ backlog 0b 0p requeues 0
+ memory used: 110488b of 4Mb
+ capacity estimate: 9500Kbit
+.br
+                 Bulk   Best Effort      Voice
+.br
+  thresh     593744bit    9500Kbit    2375Kbit
+.br
+  target        30.6ms       5.0ms       7.6ms
+.br
+  interval     125.6ms     100.0ms     102.6ms
+.br
+  pk_delay      16.0ms       545us        15us
+.br
+  av_delay       2.4ms       161us         3us
+.br
+  sp_delay        59us         1us         1us
+.br
+  pkts           32866      195815       85194
+.br
+  bytes        8132614    69517496    33122156
+.br
+  way_inds           0       29208           0
+.br
+  way_miss           7         173          17
+.br
+  way_cols           0           0           0
+.br
+  drops             10           7           1
+.br
+  marks            217         692         300
+.br
+  ack_drop           0           0           0
+.br
+  sp_flows           0           0           0
+.br
+  bk_flows           0           0           1
+.br
+  un_flows           0           0           0
+.br
+  max_len         3028        3012        3028
+.br
 
 .SH SEE ALSO
 .BR tc (8),
@@ -524,7 +670,9 @@ max-len            0           0           0           0
 .BR tc-red (8)
 
 .SH AUTHORS
-CAKE was implemented by Jonathan Morton, with contributions from Dave Taht,
-Kevin Darbyshire-Bryant, Toke Hoiland-Jorgensen and Loganaden Velvindron.
+Cake's principal author is Jonathan Morton, with contributions from
+Tony Ambardar, Kevin Darbyshire-Bryant, Toke Høiland-Jørgensen,
+Sebastian Moeller, Ryan Mounce, Dean Scarff, Nils Andreas Svee, and Dave Täht.
+
 This manual page was written by Loganaden Velvindron. Please report corrections
 to the Linux Networking mailing list <netdev@vger.kernel.org>.

@@ -243,12 +243,22 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		/* Typical VDSL2 framing schemes, both over PTM */
 		/* PTM has 64b/65b coding which absorbs some bandwidth */
 		} else if (strcmp(*argv, "pppoe-ptm") == 0) {
+			/* 2B PPP + 6B PPPoE + 6B dest MAC + 6B src MAC
+			 * + 2B ethertype + 4B Frame Check Sequence
+			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
+			 * + 2B TC-CRC (PTM-FCS) = 30B
+			 */
 			atm = 2;
-			overhead += 27;
+			overhead += 30;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
+			/* 6B dest MAC + 6B src MAC + 2B ethertype
+			 * + 4B Frame Check Sequence
+			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
+			 * + 2B TC-CRC (PTM-FCS) = 22B
+			 */
 			atm = 2;
-			overhead += 19;
+			overhead += 22;
 			overhead_set = true;
 
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
@@ -261,7 +271,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * that automatically, and is thus ignored.
 			 *
 			 * It would be deleted entirely, but it appears in the
-			 * stats output when the automatic compensation is active.
+			 * stats output when the automatic compensation is
+			 * active.
 			 */
 
 		} else if (strcmp(*argv, "ethernet") == 0) {
@@ -279,7 +290,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 
 		/*
 		 * DOCSIS cable shapers account for Ethernet frame with FCS,
-		 * but not interframe gap nor preamble.
+		 * but not interframe gap or preamble.
 		 */
 		} else if (strcmp(*argv, "docsis") == 0) {
 			atm = 0;
@@ -640,15 +651,15 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 	switch(stnc->tin_cnt) {
 	case 3:
-		fprintf(f, "                 Bulk   Best Effort      Voice\n");
+		fprintf(f, "                   Bulk  Best Effort        Voice\n");
 		break;
 
 	case 4:
-		fprintf(f, "                 Bulk   Best Effort      Video       Voice\n");
+		fprintf(f, "                   Bulk  Best Effort        Video        Voice\n");
 		break;
 
 	case 5:
-		fprintf(f, "              Low Loss  Best Effort   Low Delay       Bulk  Net Control\n");
+		fprintf(f, "               Low Loss  Best Effort    Low Delay         Bulk  Net Control\n");
 		break;
 
 	default:
@@ -660,92 +671,92 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 	fprintf(f, "  thresh  ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_rate(tst->threshold_rate, b1));
+		fprintf(f, " %12s", sprint_rate(tst->threshold_rate, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  target  ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_time(tst->target_us, b1));
+		fprintf(f, " %12s", sprint_time(tst->target_us, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  interval");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_time(tst->interval_us, b1));
+		fprintf(f, " %12s", sprint_time(tst->interval_us, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  pk_delay");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_time(tst->peak_delay_us, b1));
+		fprintf(f, " %12s", sprint_time(tst->peak_delay_us, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  av_delay");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_time(tst->avge_delay_us, b1));
+		fprintf(f, " %12s", sprint_time(tst->avge_delay_us, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  sp_delay");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12s", sprint_time(tst->base_delay_us, b1));
+		fprintf(f, " %12s", sprint_time(tst->base_delay_us, b1));
 	fprintf(f, "\n");
 
 	fprintf(f, "  pkts    ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->sent.packets);
+		fprintf(f, " %12u", tst->sent.packets);
 	fprintf(f, "\n");
 
 	fprintf(f, "  bytes   ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12llu", tst->sent.bytes);
+		fprintf(f, " %12llu", tst->sent.bytes);
 	fprintf(f, "\n");
 
 	fprintf(f, "  way_inds");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->way_indirect_hits);
+		fprintf(f, " %12u", tst->way_indirect_hits);
 	fprintf(f, "\n");
 
 	fprintf(f, "  way_miss");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->way_misses);
+		fprintf(f, " %12u", tst->way_misses);
 	fprintf(f, "\n");
 
 	fprintf(f, "  way_cols");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->way_collisions);
+		fprintf(f, " %12u", tst->way_collisions);
 	fprintf(f, "\n");
 
 	fprintf(f, "  drops   ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->dropped.packets);
+		fprintf(f, " %12u", tst->dropped.packets);
 	fprintf(f, "\n");
 
 	fprintf(f, "  marks   ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->ecn_marked.packets);
+		fprintf(f, " %12u", tst->ecn_marked.packets);
 	fprintf(f, "\n");
 
 	fprintf(f, "  ack_drop");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->ack_drops.packets);
+		fprintf(f, " %12u", tst->ack_drops.packets);
 	fprintf(f, "\n");
 
 	fprintf(f, "  sp_flows");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->sparse_flows);
+		fprintf(f, " %12u", tst->sparse_flows);
 	fprintf(f, "\n");
 
 	fprintf(f, "  bk_flows");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->bulk_flows);
+		fprintf(f, " %12u", tst->bulk_flows);
 	fprintf(f, "\n");
 
 	fprintf(f, "  un_flows");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->unresponse_flows);
+		fprintf(f, " %12u", tst->unresponse_flows);
 	fprintf(f, "\n");
 
 	fprintf(f, "  max_len ");
 	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, "%12u", tst->max_skblen);
+		fprintf(f, " %12u", tst->max_skblen);
 	fprintf(f, "\n");
 
 	return 0;
