@@ -21,6 +21,7 @@
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "utils.h"
 #include "names.h"
@@ -725,10 +726,10 @@ void print_action_control(FILE *f, const char *prefix,
 	open_json_object("control_action");
 	print_string(PRINT_ANY, "type", "%s", action_n2a(action));
 	if (TC_ACT_EXT_CMP(action, TC_ACT_GOTO_CHAIN))
-		print_uint(PRINT_ANY, "chain", " chain %u",
+		print_uint(PRINT_ANY, "chain", " chain %" PRIu64 ,
 			   action & TC_ACT_EXT_VAL_MASK);
 	if (TC_ACT_EXT_CMP(action, TC_ACT_JUMP))
-		print_uint(PRINT_ANY, "jump", " %u",
+		print_uint(PRINT_ANY, "jump", " %" PRIu64 ,
 			   action & TC_ACT_EXT_VAL_MASK);
 	close_json_object();
 	print_string(PRINT_FP, NULL, "%s", suffix);
@@ -781,17 +782,17 @@ void print_tm(FILE *f, const struct tcf_t *tm)
 
 	if (tm->install != 0) {
 		print_uint(PRINT_JSON, "installed", NULL, tm->install);
-		print_uint(PRINT_FP, NULL, " installed %u sec",
+		print_uint(PRINT_FP, NULL, " installed %" PRIu64 " sec",
 			   (unsigned int)(tm->install/hz));
 	}
 	if (tm->lastuse != 0) {
 		print_uint(PRINT_JSON, "last_used", NULL, tm->lastuse);
-		print_uint(PRINT_FP, NULL, " used %u sec",
+		print_uint(PRINT_FP, NULL, " used %" PRIu64 " sec",
 			   (unsigned int)(tm->lastuse/hz));
 	}
 	if (tm->expires != 0) {
 		print_uint(PRINT_JSON, "expires", NULL, tm->expires);
-		print_uint(PRINT_FP, NULL, " expires %u sec",
+		print_uint(PRINT_FP, NULL, " expires %" PRIu64 " sec",
 			   (unsigned int)(tm->expires/hz));
 	}
 }
@@ -809,17 +810,17 @@ void print_tcstats2_attr(FILE *fp, struct rtattr *rta, char *prefix, struct rtat
 		memcpy(&bs, RTA_DATA(tbs[TCA_STATS_BASIC]), MIN(RTA_PAYLOAD(tbs[TCA_STATS_BASIC]), sizeof(bs)));
 		print_string(PRINT_FP, NULL, "%s", prefix);
 		print_lluint(PRINT_ANY, "bytes", "Sent %llu bytes", bs.bytes);
-		print_uint(PRINT_ANY, "packets", " %u pkt", bs.packets);
+		print_uint(PRINT_ANY, "packets", " %" PRIu64 " pkt", bs.packets);
 	}
 
 	if (tbs[TCA_STATS_QUEUE]) {
 		struct gnet_stats_queue q = {0};
 
 		memcpy(&q, RTA_DATA(tbs[TCA_STATS_QUEUE]), MIN(RTA_PAYLOAD(tbs[TCA_STATS_QUEUE]), sizeof(q)));
-		print_uint(PRINT_ANY, "drops", " (dropped %u", q.drops);
-		print_uint(PRINT_ANY, "overlimits", ", overlimits %u",
+		print_uint(PRINT_ANY, "drops", " (dropped %" PRIu64, q.drops);
+		print_uint(PRINT_ANY, "overlimits", ", overlimits %" PRIu64,
 			   q.overlimits);
-		print_uint(PRINT_ANY, "requeues", " requeues %u) ", q.requeues);
+		print_uint(PRINT_ANY, "requeues", " requeues %" PRIu64 ") ", q.requeues);
 	}
 
 	if (tbs[TCA_STATS_RATE_EST64]) {
@@ -844,7 +845,7 @@ void print_tcstats2_attr(FILE *fp, struct rtattr *rta, char *prefix, struct rtat
 		print_uint(PRINT_JSON, "rate", NULL, re.bps);
 		print_string(PRINT_FP, NULL, "rate %s",
 			     sprint_rate(re.bps, b1));
-		print_uint(PRINT_ANY, "pps", " %upps", re.pps);
+		print_uint(PRINT_ANY, "pps", " %" PRIu64 "pps", re.pps);
 	}
 
 	if (tbs[TCA_STATS_QUEUE]) {
@@ -856,8 +857,8 @@ void print_tcstats2_attr(FILE *fp, struct rtattr *rta, char *prefix, struct rtat
 		print_uint(PRINT_JSON, "backlog", NULL, q.backlog);
 		print_string(PRINT_FP, NULL, "backlog %s",
 			     sprint_size(q.backlog, b1));
-		print_uint(PRINT_ANY, "qlen", " %up", q.qlen);
-		print_uint(PRINT_FP, NULL, " requeues %u", q.requeues);
+		print_uint(PRINT_ANY, "qlen", " %" PRIu64 "p", q.qlen);
+		print_uint(PRINT_FP, NULL, " requeues %" PRIu64, q.requeues);
 	}
 
 	if (xstats)
