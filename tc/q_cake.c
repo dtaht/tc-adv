@@ -47,6 +47,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "utils.h"
 #include "tc_util.h"
@@ -557,10 +558,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	else if (!raw)
 		print_string(PRINT_ANY, "atm", "%s ", "noatm");
 
-	print_uint(PRINT_ANY, "overhead", "overhead %d ", overhead);
+	print_uint(PRINT_ANY, "overhead", "overhead %" PRId64 " ", overhead);
 
 	if (mpu)
-		print_uint(PRINT_ANY, "mpu", "mpu %d ", mpu);
+		print_uint(PRINT_ANY, "mpu", "mpu %" PRIu64 " ", mpu);
 
 	if (memlimit) {
 		print_uint(PRINT_JSON, "memlimit", NULL, memlimit);
@@ -631,13 +632,13 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
 		sprint_rate(stnc->capacity_estimate, b1));
 
-	print_uint(PRINT_ANY, "min_transport_size", " min/max transport layer size: %10u",
+	print_uint(PRINT_ANY, "min_transport_size", " min/max transport layer size: %10" PRIu64,
 		stnc->min_trnlen);
-	print_uint(PRINT_ANY, "max_transport_size", " /%8u\n", stnc->max_trnlen);
-	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8u",
+	print_uint(PRINT_ANY, "max_transport_size", " /%8" PRIu64 "\n", stnc->max_trnlen);
+	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8" PRIu64,
 		stnc->min_adjlen);
-	print_uint(PRINT_ANY, "max_adj_size", " /%8u\n", stnc->max_adjlen);
-	print_uint(PRINT_ANY, "avg_hdr_offset", " average transport hdr offset: %10u\n\n",
+	print_uint(PRINT_ANY, "max_adj_size", " /%8" PRIu64 "\n", stnc->max_adjlen);
+	print_uint(PRINT_ANY, "avg_hdr_offset", " average transport hdr offset: %10" PRIu64 "\n\n",
 		stnc->avg_trnoff);
 
 	if (is_json_context()) {
