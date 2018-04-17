@@ -576,7 +576,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	i < xstats->tin_cnt;						\
 	    i++, tst = ((void *) xstats->tin_stats) + xstats->tin_stats_size * i)
 
-static void cake_print_json_tin(struct tc_cake_tin_stats *tst)
+static void cake_print_json_tin(struct tc_cake_tin_stats *tst, uint version)
 {
 	open_json_object(NULL);
 	print_uint(PRINT_JSON, "threshold_rate", NULL, tst->threshold_rate);
@@ -597,6 +597,8 @@ static void cake_print_json_tin(struct tc_cake_tin_stats *tst)
 	print_uint(PRINT_JSON, "bulk_flows", NULL, tst->bulk_flows);
 	print_uint(PRINT_JSON, "unresponsive_flows", NULL, tst->unresponse_flows);
 	print_uint(PRINT_JSON, "max_pkt_len", NULL, tst->max_skblen);
+	if (version >= 0x102)
+		print_uint(PRINT_JSON, "flow_quantum", NULL, tst->flow_quantum);
 	close_json_object();
 }
 
@@ -644,7 +646,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	if (is_json_context()) {
 		open_json_array(PRINT_JSON, "tins");
 		FOR_EACH_TIN(stnc, tst, i)
-			cake_print_json_tin(tst);
+			cake_print_json_tin(tst, stnc->version);
 		close_json_array(PRINT_JSON, NULL);
 		return 0;
 	}
@@ -759,6 +761,13 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	FOR_EACH_TIN(stnc, tst, i)
 		fprintf(f, " %12u", tst->max_skblen);
 	fprintf(f, "\n");
+
+	if (stnc->version >= 0x102) {
+		fprintf(f, "  quantum ");
+		FOR_EACH_TIN(stnc, tst, i)
+			fprintf(f, " %12u", tst->flow_quantum);
+		fprintf(f, "\n");
+	}
 
 	return 0;
 }
