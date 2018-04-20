@@ -544,7 +544,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_TEST_FLAGS]) >= sizeof(__u32)) {
 		testflags = rta_getattr_u32(tb[TCA_CAKE_TEST_FLAGS]);
 	}
-	print_uint(PRINT_ANY, "testflags", "testflags", testflags);
+	print_uint(PRINT_ANY, "testflags", "testflags %d ", testflags);
 
 	if (wash)
 		print_string(PRINT_FP, NULL, "wash ", NULL);
