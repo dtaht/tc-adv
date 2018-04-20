@@ -80,6 +80,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	unsigned target = 0;
 	unsigned diffserv = 0;
 	unsigned memlimit = 0;
+	unsigned testflags = 0;
 	int  overhead = 0;
 	bool overhead_set = false;
 	bool overhead_override = false;
@@ -316,6 +317,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 
+		} else if (strcmp(*argv, "testflags") == 0) {
+			char* p = NULL;
+			NEXT_ARG();
+			testflags = strtol(*argv, &p, 10);
+			if(!p || *p || !*argv) {
+				fprintf(stderr, "Illegal \"testflags\"\\n");
+				return -1;
+			}
+
 		} else if (strcmp(*argv, "ingress") == 0) {
 			ingress = 1;
 		} else if (strcmp(*argv, "egress") == 0) {
@@ -380,6 +390,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		addattr_l(n, 1024, TCA_CAKE_INGRESS, &ingress, sizeof(ingress));
 	if (ack_filter != -1)
 		addattr_l(n, 1024, TCA_CAKE_ACK_FILTER, &ack_filter, sizeof(ack_filter));
+	if (testflags)
+		addattr_l(n, 1024, TCA_CAKE_TEST_FLAGS, &testflags, sizeof(testflags));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -394,6 +406,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	unsigned flowmode = 0;
 	unsigned interval = 0;
 	unsigned memlimit = 0;
+	unsigned testflags = 0;
 	int overhead = 0;
 	int raw = 0;
 	int mpu = 0;
@@ -527,6 +540,11 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_RTT]) >= sizeof(__u32)) {
 		interval = rta_getattr_u32(tb[TCA_CAKE_RTT]);
 	}
+	if (tb[TCA_CAKE_TEST_FLAGS] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_TEST_FLAGS]) >= sizeof(__u32)) {
+		testflags = rta_getattr_u32(tb[TCA_CAKE_TEST_FLAGS]);
+	}
+	print_uint(PRINT_ANY, "testflags", "testflags", testflags);
 
 	if (wash)
 		print_string(PRINT_FP, NULL, "wash ", NULL);
