@@ -144,19 +144,17 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			target   =   50000000;
 
 		} else if (strcmp(*argv, "besteffort") == 0) {
-			diffserv = 1;
+			diffserv = CAKE_DIFFSERV_BESTEFFORT;
 		} else if (strcmp(*argv, "precedence") == 0) {
-			diffserv = 2;
+			diffserv = CAKE_DIFFSERV_PRECEDENCE;
 		} else if (strcmp(*argv, "diffserv8") == 0) {
-			diffserv = 3;
+			diffserv = CAKE_DIFFSERV_DIFFSERV8;
 		} else if (strcmp(*argv, "diffserv4") == 0) {
-			diffserv = 4;
+			diffserv = CAKE_DIFFSERV_DIFFSERV4;
 		} else if (strcmp(*argv, "diffserv") == 0) {
-			diffserv = 4;
-		} else if (strcmp(*argv, "diffserv-llt") == 0) {
-			diffserv = 5;
+			diffserv = CAKE_DIFFSERV_DIFFSERV4;
 		} else if (strcmp(*argv, "diffserv3") == 0) {
-			diffserv = 6;
+			diffserv = CAKE_DIFFSERV_DIFFSERV3;
 
 		} else if (strcmp(*argv, "nowash") == 0) {
 			wash = 0;
@@ -164,21 +162,21 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			wash = 1;
 
 		} else if (strcmp(*argv, "flowblind") == 0) {
-			flowmode = 0;
+			flowmode = CAKE_FLOW_NONE;
 		} else if (strcmp(*argv, "srchost") == 0) {
-			flowmode = 1;
+			flowmode = CAKE_FLOW_SRC_IP;
 		} else if (strcmp(*argv, "dsthost") == 0) {
-			flowmode = 2;
+			flowmode = CAKE_FLOW_DST_IP;
 		} else if (strcmp(*argv, "hosts") == 0) {
-			flowmode = 3;
+			flowmode = CAKE_FLOW_HOSTS;
 		} else if (strcmp(*argv, "flows") == 0) {
-			flowmode = 4;
+			flowmode = CAKE_FLOW_FLOWS;
 		} else if (strcmp(*argv, "dual-srchost") == 0) {
-			flowmode = 5;
+			flowmode = CAKE_FLOW_DUAL_SRC;
 		} else if (strcmp(*argv, "dual-dsthost") == 0) {
-			flowmode = 6;
+			flowmode = CAKE_FLOW_DUAL_DST;
 		} else if (strcmp(*argv, "triple-isolate") == 0) {
-			flowmode = 7;
+			flowmode = CAKE_FLOW_TRIPLE;
 
 		} else if (strcmp(*argv, "nat") == 0) {
 			nat = 1;
@@ -186,14 +184,14 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			nat = 0;
 
 		} else if (strcmp(*argv, "ptm") == 0) {
-			atm = 2;
+			atm = CAKE_ATM_PTM;
 		} else if (strcmp(*argv, "atm") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 		} else if (strcmp(*argv, "noatm") == 0) {
-			atm = 0;
+			atm = CAKE_ATM_NONE;
 
 		} else if (strcmp(*argv, "raw") == 0) {
-			atm = 0;
+			atm = CAKE_ATM_NONE;
 			overhead = 0;
 			overhead_set = true;
 			overhead_override = true;
@@ -203,41 +201,41 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * one whole ATM cell plus ATM framing.
 			 * A safe choice if the actual overhead is unknown.
 			 */
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead = 48;
 			overhead_set = true;
 
 		/* Various ADSL framing schemes, all over ATM cells */
 		} else if (strcmp(*argv, "ipoa-vcmux") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 8;
 			overhead_set = true;
 		} else if (strcmp(*argv, "ipoa-llcsnap") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 16;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-vcmux") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 24;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-llcsnap") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 32;
 			overhead_set = true;
 		} else if (strcmp(*argv, "pppoa-vcmux") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 10;
 			overhead_set = true;
 		} else if (strcmp(*argv, "pppoa-llc") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 14;
 			overhead_set = true;
 		} else if (strcmp(*argv, "pppoe-vcmux") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 32;
 			overhead_set = true;
 		} else if (strcmp(*argv, "pppoe-llcsnap") == 0) {
-			atm = 1;
+			atm = CAKE_ATM_ATM;
 			overhead += 40;
 			overhead_set = true;
 
@@ -249,7 +247,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
 			 * + 2B TC-CRC (PTM-FCS) = 30B
 			 */
-			atm = 2;
+			atm = CAKE_ATM_PTM;
 			overhead += 30;
 			overhead_set = true;
 		} else if (strcmp(*argv, "bridged-ptm") == 0) {
@@ -258,7 +256,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * + 1B Start of Frame (S) + 1B End of Frame (Ck)
 			 * + 2B TC-CRC (PTM-FCS) = 22B
 			 */
-			atm = 2;
+			atm = CAKE_ATM_PTM;
 			overhead += 22;
 			overhead_set = true;
 
@@ -294,7 +292,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 		 * but not interframe gap or preamble.
 		 */
 		} else if (strcmp(*argv, "docsis") == 0) {
-			atm = 0;
+			atm = CAKE_ATM_NONE;
 			overhead += 18;
 			overhead_set = true;
 			mpu = 64;
@@ -324,11 +322,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			ingress = 0;
 
 		} else if (strcmp(*argv, "no-ack-filter") == 0) {
-			ack_filter = 0;
+			ack_filter = CAKE_ACK_NONE;
 		} else if (strcmp(*argv, "ack-filter") == 0) {
-			ack_filter = 0x0200;
+			ack_filter = CAKE_ACK_FILTER;
 		} else if (strcmp(*argv, "ack-filter-aggressive") == 0) {
-			ack_filter = 0x0600;
+			ack_filter = CAKE_ACK_AGGRESSIVE;
 
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
@@ -434,23 +432,20 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
 		diffserv = rta_getattr_u32(tb[TCA_CAKE_DIFFSERV_MODE]);
 		switch(diffserv) {
-		case 1:
-			print_string(PRINT_ANY, "diffserv", "%s ", "besteffort");
+		case CAKE_DIFFSERV_DIFFSERV3:
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv3");
 			break;
-		case 2:
-			print_string(PRINT_ANY, "diffserv", "%s ", "precedence");
-			break;
-		case 3:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv8");
-			break;
-		case 4:
+		case CAKE_DIFFSERV_DIFFSERV4:
 			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv4");
 			break;
-		case 5:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv-llt");
+		case CAKE_DIFFSERV_DIFFSERV8:
+			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv8");
 			break;
-		case 6:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv3");
+		case CAKE_DIFFSERV_BESTEFFORT:
+			print_string(PRINT_ANY, "diffserv", "%s ", "besteffort");
+			break;
+		case CAKE_DIFFSERV_PRECEDENCE:
+			print_string(PRINT_ANY, "diffserv", "%s ", "precedence");
 			break;
 		default:
 			print_string(PRINT_ANY, "diffserv", "(?diffserv?) ", "unknown");
@@ -460,31 +455,29 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_FLOW_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_FLOW_MODE]) >= sizeof(__u32)) {
 		flowmode = rta_getattr_u32(tb[TCA_CAKE_FLOW_MODE]);
-		nat = !!(flowmode & 64);
-		flowmode &= ~64;
 		switch(flowmode) {
-		case 0:
+		case CAKE_FLOW_NONE:
 			print_string(PRINT_ANY, "flowmode", "%s ", "flowblind");
 			break;
-		case 1:
+		case CAKE_FLOW_SRC_IP:
 			print_string(PRINT_ANY, "flowmode", "%s ", "srchost");
 			break;
-		case 2:
+		case CAKE_FLOW_DST_IP:
 			print_string(PRINT_ANY, "flowmode", "%s ", "dsthost");
 			break;
-		case 3:
+		case CAKE_FLOW_HOSTS:
 			print_string(PRINT_ANY, "flowmode", "%s ", "hosts");
 			break;
-		case 4:
+		case CAKE_FLOW_FLOWS:
 			print_string(PRINT_ANY, "flowmode", "%s ", "flows");
 			break;
-		case 5:
+		case CAKE_FLOW_DUAL_SRC:
 			print_string(PRINT_ANY, "flowmode", "%s ", "dual-srchost");
 			break;
-		case 6:
+		case CAKE_FLOW_DUAL_DST:
 			print_string(PRINT_ANY, "flowmode", "%s ", "dual-dsthost");
 			break;
-		case 7:
+		case CAKE_FLOW_TRIPLE:
 			print_string(PRINT_ANY, "flowmode", "%s ", "triple-isolate");
 			break;
 		default:
@@ -492,10 +485,17 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			break;
 		};
 
-		if(nat)
-			print_string(PRINT_FP, NULL, "nat ", NULL);
-		print_bool(PRINT_JSON, "nat", NULL, nat);
 	}
+
+	if (tb[TCA_CAKE_NAT] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_NAT]) >= sizeof(__u32)) {
+	    nat = rta_getattr_u32(tb[TCA_CAKE_NAT]);
+	}
+
+	if(nat)
+		print_string(PRINT_FP, NULL, "nat ", NULL);
+	print_bool(PRINT_JSON, "nat", NULL, nat);
+
 	if (tb[TCA_CAKE_WASH] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_WASH]) >= sizeof(__u32)) {
 		wash = rta_getattr_u32(tb[TCA_CAKE_WASH]);
@@ -505,8 +505,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		atm = rta_getattr_u32(tb[TCA_CAKE_ATM]);
 	}
 	if (tb[TCA_CAKE_OVERHEAD] &&
-	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__u32)) {
-		overhead = rta_getattr_u32(tb[TCA_CAKE_OVERHEAD]);
+	    RTA_PAYLOAD(tb[TCA_CAKE_OVERHEAD]) >= sizeof(__s32)) {
+		overhead = *(__s32 *) RTA_DATA(tb[TCA_CAKE_OVERHEAD]);
 	}
 	if (tb[TCA_CAKE_MPU] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_MPU]) >= sizeof(__u32)) {
@@ -536,9 +536,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		print_string(PRINT_FP, NULL, "ingress ", NULL);
 	print_bool(PRINT_JSON, "ingress", NULL, ingress);
 
-	if (ack_filter == 0x0600)
+	if (ack_filter == CAKE_ACK_AGGRESSIVE)
 		print_string(PRINT_ANY, "ack-filter", "ack-filter-%s ", "aggressive");
-	else if (ack_filter)
+	else if (ack_filter == CAKE_ACK_FILTER)
 		print_string(PRINT_ANY, "ack-filter", "ack-filter ", "enabled");
 	else
 		print_string(PRINT_JSON, "ack-filter", NULL, "disabled");
@@ -551,9 +551,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		print_string(PRINT_FP, NULL, "raw ", NULL);
 	print_bool(PRINT_JSON, "raw", NULL, raw);
 
-	if (atm == 1)
+	if (atm == CAKE_ATM_ATM)
 		print_string(PRINT_ANY, "atm", "%s ", "atm");
-	else if (atm == 2)
+	else if (atm == CAKE_ATM_PTM)
 		print_string(PRINT_ANY, "atm", "%s ", "ptm");
 	else if (!raw)
 		print_string(PRINT_ANY, "atm", "%s ", "noatm");
