@@ -549,103 +549,73 @@ case for Comcast Cable, among others), it is best to use a single queue
 .SH EXAMPLES
 # tc qdisc delete root dev eth0
 .br
-# tc qdisc add root dev eth0 cake bandwidth 9500Kbit pppoe-ptm ether-vlan
+# tc qdisc add root dev eth0 cake bandwidth 100Mbit ethernet
 .br
 # tc -s qdisc show dev eth0
 .br
-qdisc cake 8007: root refcnt 6 bandwidth 9500Kbit diffserv3 triple-isolate rtt 100.0ms ptm overhead 34 via-ethernet total_overhead 34 hard_header_len 14
- Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0)
+qdisc cake 1: dev eth0 root refcnt 2 bandwidth 100Mbit diffserv3 triple-isolate rtt 100.0ms noatm overhead 38 mpu 84 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
  backlog 0b 0p requeues 0
- memory used: 0b of 4Mb
- capacity estimate: 9500Kbit
-.br
-                 Bulk   Best Effort      Voice
-.br
-  thresh     593744bit    9500Kbit    2375Kbit
-.br
-  target        30.6ms       5.0ms       7.6ms
-.br
-  interval     125.6ms     100.0ms     102.6ms
-.br
-  pk_delay         0us         0us         0us
-.br
-  av_delay         0us         0us         0us
-.br
-  sp_delay         0us         0us         0us
-.br
-  pkts               0           0           0
-.br
-  bytes              0           0           0
-.br
-  way_inds           0           0           0
-.br
-  way_miss           0           0           0
-.br
-  way_cols           0           0           0
-.br
-  drops              0           0           0
-.br
-  marks              0           0           0
-.br
-  ack_drop           0           0           0
-.br
-  sp_flows           0           0           0
-.br
-  bk_flows           0           0           0
-.br
-  un_flows           0           0           0
-.br
-  max_len            0           0           0
-.br
+ memory used: 0b of 5000000b
+ capacity estimate: 100Mbit
+ min/max network layer size:        65535 /       0
+ min/max overhead-adjusted size:    65535 /       0
+ average network hdr offset:          0
+
+                   Bulk  Best Effort        Voice
+  thresh       6250Kbit      100Mbit       25Mbit
+  target          5.0ms        5.0ms        5.0ms
+  interval      100.0ms      100.0ms      100.0ms
+  pk_delay          0us          0us          0us
+  av_delay          0us          0us          0us
+  sp_delay          0us          0us          0us
+  pkts                0            0            0
+  bytes               0            0            0
+  way_inds            0            0            0
+  way_miss            0            0            0
+  way_cols            0            0            0
+  drops               0            0            0
+  marks               0            0            0
+  ack_drop            0            0            0
+  sp_flows            0            0            0
+  bk_flows            0            0            0
+  un_flows            0            0            0
+  max_len             0            0            0
+  quantum           300         1514          762
 
 After some use:
 .br
 # tc -s qdisc show dev eth0
 
-qdisc cake 8007: root refcnt 6 bandwidth 9500Kbit diffserv3 triple-isolate rtt 100.0ms ptm overhead 34 via-ethernet total_overhead 34 hard_header_len 14
- Sent 110769306 bytes 313857 pkt (dropped 18, overlimits 741791 requeues 0)
- backlog 0b 0p requeues 0
- memory used: 110488b of 4Mb
- capacity estimate: 9500Kbit
-.br
-                 Bulk   Best Effort      Voice
-.br
-  thresh     593744bit    9500Kbit    2375Kbit
-.br
-  target        30.6ms       5.0ms       7.6ms
-.br
-  interval     125.6ms     100.0ms     102.6ms
-.br
-  pk_delay      16.0ms       545us        15us
-.br
-  av_delay       2.4ms       161us         3us
-.br
-  sp_delay        59us         1us         1us
-.br
-  pkts           32866      195815       85194
-.br
-  bytes        8132614    69517496    33122156
-.br
-  way_inds           0       29208           0
-.br
-  way_miss           7         173          17
-.br
-  way_cols           0           0           0
-.br
-  drops             10           7           1
-.br
-  marks            217         692         300
-.br
-  ack_drop           0           0           0
-.br
-  sp_flows           0           0           0
-.br
-  bk_flows           0           0           1
-.br
-  un_flows           0           0           0
-.br
-  max_len         3028        3012        3028
-.br
+qdisc cake 1: root refcnt 2 bandwidth 100Mbit diffserv3 triple-isolate rtt 100.0ms noatm overhead 38 mpu 84 
+ Sent 44709231 bytes 31931 pkt (dropped 45, overlimits 93782 requeues 0) 
+ backlog 33308b 22p requeues 0
+ memory used: 292352b of 5000000b
+ capacity estimate: 100Mbit
+ min/max network layer size:           28 /    1500
+ min/max overhead-adjusted size:       84 /    1538
+ average network hdr offset:         14
+
+                   Bulk  Best Effort        Voice
+  thresh       6250Kbit      100Mbit       25Mbit
+  target          5.0ms        5.0ms        5.0ms
+  interval      100.0ms      100.0ms      100.0ms
+  pk_delay        8.7ms        6.9ms        5.0ms
+  av_delay        4.9ms        5.3ms        3.8ms
+  sp_delay        727us        1.4ms        511us
+  pkts             2590        21271         8137
+  bytes         3081804     30302659     11426206
+  way_inds            0           46            0
+  way_miss            3           17            4
+  way_cols            0            0            0
+  drops              20           15           10
+  marks               0            0            0
+  ack_drop            0            0            0
+  sp_flows            2            4            1
+  bk_flows            1            2            1
+  un_flows            0            0            0
+  max_len          1514         1514         1514
+  quantum           300         1514          762
 
 .SH SEE ALSO
 .BR tc (8),
