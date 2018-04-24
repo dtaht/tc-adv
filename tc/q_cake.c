@@ -651,7 +651,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
 		sprint_rate(stnc->capacity_estimate, b1));
 
-	print_uint(PRINT_ANY, "min_network_size", " min/max network layer size: %10" PRIu64,
+	print_uint(PRINT_ANY, "min_network_size", " min/max network layer size: %12" PRIu64,
 		stnc->min_netlen);
 	print_uint(PRINT_ANY, "max_network_size", " /%8" PRIu64 "\n", stnc->max_netlen);
 	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8" PRIu64,
