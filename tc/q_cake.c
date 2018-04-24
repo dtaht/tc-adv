@@ -657,7 +657,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8" PRIu64,
 		stnc->min_adjlen);
 	print_uint(PRINT_ANY, "max_adj_size", " /%8" PRIu64 "\n", stnc->max_adjlen);
-	print_uint(PRINT_ANY, "avg_hdr_offset", " average network hdr offset: %10" PRIu64 "\n\n",
+	print_uint(PRINT_ANY, "avg_hdr_offset", " average network hdr offset: %12" PRIu64 "\n\n",
 		stnc->avg_trnoff);
 
 	if (is_json_context()) {
