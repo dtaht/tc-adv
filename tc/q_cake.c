@@ -570,204 +570,195 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	return 0;
 }
 
-#define FOR_EACH_TIN(xstats, tst, i)				\
-	for(tst = xstats->tin_stats, i = 0;			\
-	i < xstats->tin_cnt;						\
-	    i++, tst = ((void *) xstats->tin_stats) + xstats->tin_stats_size * i)
-
-static void cake_print_json_tin(struct tc_cake_tin_stats *tst, uint version)
+static void cake_print_json_tin(struct rtattr **tstat)
 {
+#define PRINT_TSTAT_JSON(type, name, attr) if (tstat[TCA_CAKE_TIN_STATS_ ## attr]) \
+		print_uint(PRINT_JSON, name, NULL,			\
+			rta_getattr_ ## type((struct rtattr *)tstat[TCA_CAKE_TIN_STATS_ ## attr]))
+
 	open_json_object(NULL);
-	print_uint(PRINT_JSON, "threshold_rate", NULL, tst->threshold_rate);
-	print_uint(PRINT_JSON, "target", NULL, tst->target_us);
-	print_uint(PRINT_JSON, "interval", NULL, tst->interval_us);
-	print_uint(PRINT_JSON, "peak_delay", NULL, tst->peak_delay_us);
-	print_uint(PRINT_JSON, "average_delay", NULL, tst->avge_delay_us);
-	print_uint(PRINT_JSON, "base_delay", NULL, tst->base_delay_us);
-	print_uint(PRINT_JSON, "sent_packets", NULL, tst->sent.packets);
-	print_uint(PRINT_JSON, "sent_bytes", NULL, tst->sent.bytes);
-	print_uint(PRINT_JSON, "way_indirect_hits", NULL, tst->way_indirect_hits);
-	print_uint(PRINT_JSON, "way_misses", NULL, tst->way_misses);
-	print_uint(PRINT_JSON, "way_collisions", NULL, tst->way_collisions);
-	print_uint(PRINT_JSON, "drops", NULL, tst->dropped.packets);
-	print_uint(PRINT_JSON, "ecn_mark", NULL, tst->ecn_marked.packets);
-	print_uint(PRINT_JSON, "ack_drops", NULL, tst->ack_drops.packets);
-	print_uint(PRINT_JSON, "sparse_flows", NULL, tst->sparse_flows);
-	print_uint(PRINT_JSON, "bulk_flows", NULL, tst->bulk_flows);
-	print_uint(PRINT_JSON, "unresponsive_flows", NULL, tst->unresponse_flows);
-	print_uint(PRINT_JSON, "max_pkt_len", NULL, tst->max_skblen);
-	if (version >= 0x102)
-		print_uint(PRINT_JSON, "flow_quantum", NULL, tst->flow_quantum);
+	PRINT_TSTAT_JSON(u32, "threshold_rate", THRESHOLD_RATE);
+	PRINT_TSTAT_JSON(u32, "target", TARGET_US);
+	PRINT_TSTAT_JSON(u32, "interval", INTERVAL_US);
+	PRINT_TSTAT_JSON(u32, "peak_delay", PEAK_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "average_delay", AVG_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "base_delay", BASE_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "sent_packets", SENT_PACKETS);
+	PRINT_TSTAT_JSON(u64, "sent_bytes", SENT_BYTES64);
+	PRINT_TSTAT_JSON(u32, "way_indirect_hits", WAY_INDIRECT_HITS);
+	PRINT_TSTAT_JSON(u32, "way_misses", WAY_MISSES);
+	PRINT_TSTAT_JSON(u32, "way_collisions", WAY_COLLISIONS);
+	PRINT_TSTAT_JSON(u32, "drops", DROPPED_PACKETS);
+	PRINT_TSTAT_JSON(u32, "ecn_mark", ECN_MARKED_PACKETS);
+	PRINT_TSTAT_JSON(u32, "ack_drops", ACKS_DROPPED_PACKETS);
+	PRINT_TSTAT_JSON(u32, "sparse_flows", SPARSE_FLOWS);
+	PRINT_TSTAT_JSON(u32, "bulk_flows", BULK_FLOWS);
+	PRINT_TSTAT_JSON(u32, "unresponsive_flows", UNRESPONSIVE_FLOWS);
+	PRINT_TSTAT_JSON(u32, "max_pkt_len", MAX_SKBLEN);
+	PRINT_TSTAT_JSON(u32, "flow_quantum", FLOW_QUANTUM);
 	close_json_object();
+
+#undef PRINT_TSTAT_JSON
 }
 
 static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			     struct rtattr *xstats)
 {
-	struct tc_cake_xstats     *stnc;
-	struct tc_cake_tin_stats  *tst;
 	SPRINT_BUF(b1);
+	struct rtattr *st[TCA_CAKE_STATS_MAX + 1];
 	int i;
 
 	if (xstats == NULL)
 		return 0;
 
-	if (RTA_PAYLOAD(xstats) < sizeof(*stnc))
-		return -1;
+#define GET_STAT_U32(attr) rta_getattr_u32(st[TCA_CAKE_STATS_ ## attr])
 
-	stnc = RTA_DATA(xstats);
+	parse_rtattr_nested(st, TCA_CAKE_STATS_MAX, xstats);
 
-	if (stnc->version < 0x101 ||
-	    RTA_PAYLOAD(xstats) < (sizeof(struct tc_cake_xstats) +
-				    stnc->tin_stats_size * stnc->tin_cnt))
-		return -1;
+	if (st[TCA_CAKE_STATS_MEMORY_USED] &&
+	    st[TCA_CAKE_STATS_MEMORY_LIMIT]) {
+		print_string(PRINT_FP, NULL, " memory used: %s",
+			sprint_size(GET_STAT_U32(MEMORY_USED), b1));
 
-	print_uint(PRINT_JSON, "memory_used", NULL, stnc->memory_used);
-	print_uint(PRINT_JSON, "memory_limit", NULL, stnc->memory_limit);
-	print_uint(PRINT_JSON, "capacity_estimate", NULL, stnc->capacity_estimate);
+		print_string(PRINT_FP, NULL, " of %s\n",
+			sprint_size(GET_STAT_U32(MEMORY_LIMIT), b1));
 
-	print_string(PRINT_FP, NULL, " memory used: %s",
-		sprint_size(stnc->memory_used, b1));
-	print_string(PRINT_FP, NULL, " of %s\n",
-		sprint_size(stnc->memory_limit, b1));
-	print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
-		sprint_rate(stnc->capacity_estimate, b1));
-
-	print_uint(PRINT_ANY, "min_network_size", " min/max network layer size: %12" PRIu64,
-		stnc->min_netlen);
-	print_uint(PRINT_ANY, "max_network_size", " /%8" PRIu64 "\n", stnc->max_netlen);
-	print_uint(PRINT_ANY, "min_adj_size", " min/max overhead-adjusted size: %8" PRIu64,
-		stnc->min_adjlen);
-	print_uint(PRINT_ANY, "max_adj_size", " /%8" PRIu64 "\n", stnc->max_adjlen);
-	print_uint(PRINT_ANY, "avg_hdr_offset", " average network hdr offset: %12" PRIu64 "\n\n",
-		stnc->avg_trnoff);
-
-	if (is_json_context()) {
-		open_json_array(PRINT_JSON, "tins");
-		FOR_EACH_TIN(stnc, tst, i)
-			cake_print_json_tin(tst, stnc->version);
-		close_json_array(PRINT_JSON, NULL);
-		return 0;
+		print_uint(PRINT_JSON, "memory_used", NULL,
+			GET_STAT_U32(MEMORY_USED));
+		print_uint(PRINT_JSON, "memory_limit", NULL,
+			GET_STAT_U32(MEMORY_LIMIT));
 	}
 
-
-	switch(stnc->tin_cnt) {
-	case 3:
-		fprintf(f, "                   Bulk  Best Effort        Voice\n");
-		break;
-
-	case 4:
-		fprintf(f, "                   Bulk  Best Effort        Video        Voice\n");
-		break;
-
-	case 5:
-		fprintf(f, "               Low Loss  Best Effort    Low Delay         Bulk  Net Control\n");
-		break;
-
-	default:
-		fprintf(f, "          ");
-		for(i=0; i < stnc->tin_cnt; i++)
-			fprintf(f, "       Tin %u", i);
-		fprintf(f, "\n");
-	};
-
-	fprintf(f, "  thresh  ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_rate(tst->threshold_rate, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  target  ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_time(tst->target_us, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  interval");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_time(tst->interval_us, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  pk_delay");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_time(tst->peak_delay_us, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  av_delay");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_time(tst->avge_delay_us, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  sp_delay");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12s", sprint_time(tst->base_delay_us, b1));
-	fprintf(f, "\n");
-
-	fprintf(f, "  pkts    ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->sent.packets);
-	fprintf(f, "\n");
-
-	fprintf(f, "  bytes   ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12llu", tst->sent.bytes);
-	fprintf(f, "\n");
-
-	fprintf(f, "  way_inds");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->way_indirect_hits);
-	fprintf(f, "\n");
-
-	fprintf(f, "  way_miss");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->way_misses);
-	fprintf(f, "\n");
-
-	fprintf(f, "  way_cols");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->way_collisions);
-	fprintf(f, "\n");
-
-	fprintf(f, "  drops   ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->dropped.packets);
-	fprintf(f, "\n");
-
-	fprintf(f, "  marks   ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->ecn_marked.packets);
-	fprintf(f, "\n");
-
-	fprintf(f, "  ack_drop");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->ack_drops.packets);
-	fprintf(f, "\n");
-
-	fprintf(f, "  sp_flows");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->sparse_flows);
-	fprintf(f, "\n");
-
-	fprintf(f, "  bk_flows");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->bulk_flows);
-	fprintf(f, "\n");
-
-	fprintf(f, "  un_flows");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->unresponse_flows);
-	fprintf(f, "\n");
-
-	fprintf(f, "  max_len ");
-	FOR_EACH_TIN(stnc, tst, i)
-		fprintf(f, " %12u", tst->max_skblen);
-	fprintf(f, "\n");
-
-	if (stnc->version >= 0x102) {
-		fprintf(f, "  quantum ");
-		FOR_EACH_TIN(stnc, tst, i)
-			fprintf(f, " %12u", tst->flow_quantum);
-		fprintf(f, "\n");
+	if (st[TCA_CAKE_STATS_CAPACITY_ESTIMATE]) {
+		print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
+			sprint_rate(GET_STAT_U32(CAPACITY_ESTIMATE), b1));
+		print_uint(PRINT_JSON, "capacity_estimate", NULL,
+			GET_STAT_U32(CAPACITY_ESTIMATE));
 	}
 
+	if (st[TCA_CAKE_STATS_MIN_NETLEN] &&
+	    st[TCA_CAKE_STATS_MAX_NETLEN]) {
+		print_uint(PRINT_ANY, "min_network_size",
+			   " min/max network layer size: %12" PRIu64,
+			   GET_STAT_U32(MIN_NETLEN));
+		print_uint(PRINT_ANY, "max_network_size",
+			   " /%8" PRIu64 "\n", GET_STAT_U32(MAX_NETLEN));
+	}
+
+	if (st[TCA_CAKE_STATS_MIN_ADJLEN] &&
+	    st[TCA_CAKE_STATS_MAX_ADJLEN]) {
+		print_uint(PRINT_ANY, "min_adj_size",
+			   " min/max overhead-adjusted size: %8" PRIu64,
+			   GET_STAT_U32(MIN_ADJLEN));
+		print_uint(PRINT_ANY, "max_adj_size",
+			   " /%8" PRIu64 "\n", GET_STAT_U32(MAX_ADJLEN));
+	}
+
+	if (st[TCA_CAKE_STATS_AVG_NETOFF])
+		print_uint(PRINT_ANY, "avg_hdr_offset",
+			   " average network hdr offset: %12" PRIu64 "\n\n",
+			   GET_STAT_U32(AVG_NETOFF));
+
+#undef GET_STAT_U32
+
+	if (st[TCA_CAKE_STATS_TIN_STATS]) {
+		struct rtattr *tins[TC_CAKE_MAX_TINS + 1];
+		struct rtattr *tstat[TC_CAKE_MAX_TINS][TCA_CAKE_TIN_STATS_MAX + 1];
+		int num_tins = 0;
+
+		parse_rtattr_nested(tins, TC_CAKE_MAX_TINS, st[TCA_CAKE_STATS_TIN_STATS]);
+
+		for (i = 1; i <= TC_CAKE_MAX_TINS && tins[i]; i++) {
+			parse_rtattr_nested(tstat[i-1], TCA_CAKE_TIN_STATS_MAX, tins[i]);
+			num_tins++;
+		}
+
+		if (!num_tins)
+			return 0;
+
+		if (is_json_context()) {
+			open_json_array(PRINT_JSON, "tins");
+			for (i = 0; i < num_tins; i++)
+				cake_print_json_tin(tstat[i]);
+			close_json_array(PRINT_JSON, NULL);
+
+			return 0;
+		}
+
+
+		switch(num_tins) {
+		case 3:
+			fprintf(f, "                   Bulk  Best Effort        Voice\n");
+			break;
+
+		case 4:
+			fprintf(f, "                   Bulk  Best Effort        Video        Voice\n");
+			break;
+
+		default:
+			fprintf(f, "          ");
+			for(i=0; i < num_tins; i++)
+				fprintf(f, "        Tin %u", i);
+			fprintf(f, "\n");
+		};
+
+#define SPRINT_TSTAT(name, pfunc, attr)	do {	\
+		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
+			fprintf(f, name);			\
+			for (i = 0; i < num_tins; i++)		\
+				fprintf(f, " %12s",		\
+					sprint_ ## pfunc (	\
+						rta_getattr_u32( \
+							tstat[i][TCA_CAKE_TIN_STATS_ ## attr]), \
+						b1));		\
+			fprintf(f, "\n");			\
+		}} while (0)
+#define PRINT_TSTAT_U32(name, attr)	do {	\
+		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
+			fprintf(f, name);			\
+			for (i = 0; i < num_tins; i++)		\
+				fprintf(f, " %12u",		\
+					rta_getattr_u32(		\
+						tstat[i][TCA_CAKE_TIN_STATS_ ## attr])); \
+			fprintf(f, "\n");			\
+		}} while (0)
+
+#define PRINT_TSTAT_U64(name, attr)	do {	\
+		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
+			fprintf(f, name);			\
+			for (i = 0; i < num_tins; i++)		\
+				fprintf(f, " %12llu",		\
+					rta_getattr_u64(		\
+						tstat[i][TCA_CAKE_TIN_STATS_ ## attr])); \
+			fprintf(f, "\n");			\
+		}} while (0)
+
+		SPRINT_TSTAT("  thresh  ", rate, THRESHOLD_RATE);
+		SPRINT_TSTAT("  target  ", time, TARGET_US);
+		SPRINT_TSTAT("  interval", time, INTERVAL_US);
+		SPRINT_TSTAT("  pk_delay", time, PEAK_DELAY_US);
+		SPRINT_TSTAT("  av_delay", time, AVG_DELAY_US);
+		SPRINT_TSTAT("  sp_delay", time, BASE_DELAY_US);
+
+		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
+		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
+
+		PRINT_TSTAT_U32("  way_inds", WAY_INDIRECT_HITS);
+		PRINT_TSTAT_U32("  way_miss", WAY_MISSES);
+		PRINT_TSTAT_U32("  way_cols", WAY_COLLISIONS);
+		PRINT_TSTAT_U32("  drops   ", DROPPED_PACKETS);
+		PRINT_TSTAT_U32("  marks   ", ECN_MARKED_PACKETS);
+		PRINT_TSTAT_U32("  ack_drop", ACKS_DROPPED_PACKETS);
+		PRINT_TSTAT_U32("  sp_flows", SPARSE_FLOWS);
+		PRINT_TSTAT_U32("  bk_flows", BULK_FLOWS);
+		PRINT_TSTAT_U32("  un_flows", UNRESPONSIVE_FLOWS);
+		PRINT_TSTAT_U32("  max_len ", MAX_SKBLEN);
+		PRINT_TSTAT_U32("  quantum ", FLOW_QUANTUM);
+
+#undef SPRINT_TSTAT
+#undef PRINT_TSTAT_U32
+#undef PRINT_TSTAT_U64
+	}
 	return 0;
 }
 
