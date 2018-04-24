@@ -1,6 +1,6 @@
 .TH CAKE 8 "23 November 2017" "iproute2" "Linux"
 .SH NAME
-CAKE \- COMMON Applications Kept Enhanced (CAKE)
+CAKE \- Common Applications Kept Enhanced (CAKE)
 .SH SYNOPSIS
 .B tc qdisc ... cake
 .br
@@ -38,8 +38,6 @@ TIME |
 .BR diffserv8
 |
 .BR diffserv4
-|
-.BR diffserv-llt
 |
 .BR diffserv3*
 ]
@@ -496,20 +494,6 @@ settings.
 .br
 	Enables legacy interpretation of TOS "Precedence" field.  Use of this
 preset on the modern Internet is firmly discouraged.
-.PP
-.B diffserv-llt
-.br
-	Provides a "Latency-Loss Tradeoff" implementation with five tins:
-.br
-		Low Loss (TOS1, TOS2), 100% threshold, increased Codel target.
-.br
-		Best Effort (general), 100% threshold, normal Codel target & interval.
-.br
-		Low Latency (TOS4, TOS5, VA, EF), 100% threshold, reduced Codel interval.
-.br
-		Bulk (CS1), 6.25% threshold, normal Codel target & interval.
-.br
-		Net Control (CS6, CS7), 6.25% threshold, increased Codel target & interval.
 .PP
 .B diffserv4
 .br
