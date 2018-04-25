@@ -402,6 +402,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int wash = 0;
 	int ingress = 0;
 	int ack_filter = 0;
+	int split_gso = 0;
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -519,6 +520,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_ACK_FILTER]) >= sizeof(__u32)) {
 		ack_filter = rta_getattr_u32(tb[TCA_CAKE_ACK_FILTER]);
 	}
+	if (tb[TCA_CAKE_SPLIT_GSO] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_SPLIT_GSO]) >= sizeof(__u32)) {
+		split_gso = rta_getattr_u32(tb[TCA_CAKE_SPLIT_GSO]);
+	}
 	if (tb[TCA_CAKE_RAW]) {
 		raw = 1;
 	}
@@ -541,6 +546,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		print_string(PRINT_ANY, "ack-filter", "ack-filter ", "enabled");
 	else
 		print_string(PRINT_JSON, "ack-filter", NULL, "disabled");
+
+	if (split_gso)
+		print_string(PRINT_FP, NULL, "split-gso ", NULL);
+	print_bool(PRINT_JSON, "split_gso", NULL, split_gso);
 
 	if (interval)
 		print_string(PRINT_FP, NULL, "rtt %s ", sprint_time(interval, b2));
