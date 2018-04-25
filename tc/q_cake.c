@@ -578,11 +578,11 @@ static void cake_print_json_tin(struct rtattr **tstat)
 
 	open_json_object(NULL);
 	PRINT_TSTAT_JSON(u32, "threshold_rate", THRESHOLD_RATE);
-	PRINT_TSTAT_JSON(u32, "target", TARGET_US);
-	PRINT_TSTAT_JSON(u32, "interval", INTERVAL_US);
-	PRINT_TSTAT_JSON(u32, "peak_delay", PEAK_DELAY_US);
-	PRINT_TSTAT_JSON(u32, "average_delay", AVG_DELAY_US);
-	PRINT_TSTAT_JSON(u32, "base_delay", BASE_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "target_us", TARGET_US);
+	PRINT_TSTAT_JSON(u32, "interval_us", INTERVAL_US);
+	PRINT_TSTAT_JSON(u32, "peak_delay_us", PEAK_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "avg_delay_us", AVG_DELAY_US);
+	PRINT_TSTAT_JSON(u32, "base_delay_us", BASE_DELAY_US);
 	PRINT_TSTAT_JSON(u32, "sent_packets", SENT_PACKETS);
 	PRINT_TSTAT_JSON(u64, "sent_bytes", SENT_BYTES64);
 	PRINT_TSTAT_JSON(u32, "way_indirect_hits", WAY_INDIRECT_HITS);
