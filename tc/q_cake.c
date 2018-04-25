@@ -702,43 +702,32 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			fprintf(f, "\n");
 		};
 
-#define SPRINT_TSTAT(name, pfunc, attr)	do {	\
-		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
-			fprintf(f, name);			\
-			for (i = 0; i < num_tins; i++)		\
-				fprintf(f, " %12s",		\
-					sprint_ ## pfunc (	\
-						rta_getattr_u32( \
-							tstat[i][TCA_CAKE_TIN_STATS_ ## attr]), \
-						b1));		\
-			fprintf(f, "\n");			\
-		}} while (0)
-#define PRINT_TSTAT_U32(name, attr)	do {	\
-		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
-			fprintf(f, name);			\
-			for (i = 0; i < num_tins; i++)		\
-				fprintf(f, " %12u",		\
-					rta_getattr_u32(		\
-						tstat[i][TCA_CAKE_TIN_STATS_ ## attr])); \
-			fprintf(f, "\n");			\
-		}} while (0)
+#define GET_TSTAT(i, attr) (tstat[i][TCA_CAKE_TIN_STATS_ ## attr])
+#define PRINT_TSTAT(name, attr, fmts, val)	do {		\
+			if (GET_TSTAT(0, attr)) {		\
+				fprintf(f, name);		\
+				for (i = 0; i < num_tins; i++)	\
+					fprintf(f, " %12" fmts,	val);	\
+				fprintf(f, "\n");			\
+			}						\
+		} while (0)
 
-#define PRINT_TSTAT_U64(name, attr)	do {	\
-		if (tstat[0][TCA_CAKE_TIN_STATS_ ## attr]) {	\
-			fprintf(f, name);			\
-			for (i = 0; i < num_tins; i++)		\
-				fprintf(f, " %12llu",		\
-					rta_getattr_u64(		\
-						tstat[i][TCA_CAKE_TIN_STATS_ ## attr])); \
-			fprintf(f, "\n");			\
-		}} while (0)
+#define SPRINT_TSTAT(pfunc, name, attr) PRINT_TSTAT(		\
+			name, attr, "s", sprint_ ## pfunc(		\
+				rta_getattr_u32(GET_TSTAT(i, attr)), b1))
 
-		SPRINT_TSTAT("  thresh  ", rate, THRESHOLD_RATE);
-		SPRINT_TSTAT("  target  ", time, TARGET_US);
-		SPRINT_TSTAT("  interval", time, INTERVAL_US);
-		SPRINT_TSTAT("  pk_delay", time, PEAK_DELAY_US);
-		SPRINT_TSTAT("  av_delay", time, AVG_DELAY_US);
-		SPRINT_TSTAT("  sp_delay", time, BASE_DELAY_US);
+#define PRINT_TSTAT_U32(name, attr)	PRINT_TSTAT(			\
+			name, attr, "u", rta_getattr_u32(GET_TSTAT(i, attr)))
+
+#define PRINT_TSTAT_U64(name, attr)	PRINT_TSTAT(			\
+			name, attr, "llu", rta_getattr_u64(GET_TSTAT(i, attr)))
+
+		SPRINT_TSTAT(rate, "  thresh  ", THRESHOLD_RATE);
+		SPRINT_TSTAT(time, "  target  ", TARGET_US);
+		SPRINT_TSTAT(time, "  interval", INTERVAL_US);
+		SPRINT_TSTAT(time, "  pk_delay", PEAK_DELAY_US);
+		SPRINT_TSTAT(time, "  av_delay", AVG_DELAY_US);
+		SPRINT_TSTAT(time, "  sp_delay", BASE_DELAY_US);
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
@@ -755,6 +744,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		PRINT_TSTAT_U32("  max_len ", MAX_SKBLEN);
 		PRINT_TSTAT_U32("  quantum ", FLOW_QUANTUM);
 
+#undef GET_STAT
+#undef PRINT_TSTAT
 #undef SPRINT_TSTAT
 #undef PRINT_TSTAT_U32
 #undef PRINT_TSTAT_U64
