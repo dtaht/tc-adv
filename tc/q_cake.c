@@ -639,24 +639,24 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 	if (st[TCA_CAKE_STATS_MIN_NETLEN] &&
 	    st[TCA_CAKE_STATS_MAX_NETLEN]) {
 		print_uint(PRINT_ANY, "min_network_size",
-			   " min/max network layer size: %12" PRIu64,
+			   " min/max network layer size: %12u",
 			   GET_STAT_U32(MIN_NETLEN));
 		print_uint(PRINT_ANY, "max_network_size",
-			   " /%8" PRIu64 "\n", GET_STAT_U32(MAX_NETLEN));
+			   " /%8u\n", GET_STAT_U32(MAX_NETLEN));
 	}
 
 	if (st[TCA_CAKE_STATS_MIN_ADJLEN] &&
 	    st[TCA_CAKE_STATS_MAX_ADJLEN]) {
 		print_uint(PRINT_ANY, "min_adj_size",
-			   " min/max overhead-adjusted size: %8" PRIu64,
+			   " min/max overhead-adjusted size: %8u",
 			   GET_STAT_U32(MIN_ADJLEN));
 		print_uint(PRINT_ANY, "max_adj_size",
-			   " /%8" PRIu64 "\n", GET_STAT_U32(MAX_ADJLEN));
+			   " /%8u\n", GET_STAT_U32(MAX_ADJLEN));
 	}
 
 	if (st[TCA_CAKE_STATS_AVG_NETOFF])
 		print_uint(PRINT_ANY, "avg_hdr_offset",
-			   " average network hdr offset: %12" PRIu64 "\n\n",
+			   " average network hdr offset: %12u\n\n",
 			   GET_STAT_U32(AVG_NETOFF));
 
 #undef GET_STAT_U32
