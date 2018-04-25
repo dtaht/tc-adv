@@ -42,6 +42,8 @@ int force;
 bool use_names;
 int json;
 int color;
+int oneline;
+const char *_SL_;
 
 static char *conf_file;
 
@@ -60,10 +62,13 @@ static int print_noqopt(struct qdisc_util *qu, FILE *f,
 	return 0;
 }
 
-static int parse_noqopt(struct qdisc_util *qu, int argc, char **argv, struct nlmsghdr *n, const char *dev)
+static int parse_noqopt(struct qdisc_util *qu, int argc, char **argv,
+			struct nlmsghdr *n, const char *dev)
 {
 	if (argc) {
-		fprintf(stderr, "Unknown qdisc \"%s\", hence option \"%s\" is unparsable\n", qu->id, *argv);
+		fprintf(stderr,
+			"Unknown qdisc \"%s\", hence option \"%s\" is unparsable\n",
+			qu->id, *argv);
 		return -1;
 	}
 	return 0;
@@ -79,12 +84,15 @@ static int print_nofopt(struct filter_util *qu, FILE *f, struct rtattr *opt, __u
 	return 0;
 }
 
-static int parse_nofopt(struct filter_util *qu, char *fhandle, int argc, char **argv, struct nlmsghdr *n)
+static int parse_nofopt(struct filter_util *qu, char *fhandle,
+			int argc, char **argv, struct nlmsghdr *n)
 {
 	__u32 handle;
 
 	if (argc) {
-		fprintf(stderr, "Unknown filter \"%s\", hence option \"%s\" is unparsable\n", qu->id, *argv);
+		fprintf(stderr,
+			"Unknown filter \"%s\", hence option \"%s\" is unparsable\n",
+			qu->id, *argv);
 		return -1;
 	}
 	if (fhandle) {
@@ -186,12 +194,14 @@ noexist:
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: tc [ OPTIONS ] OBJECT { COMMAND | help }\n"
+	fprintf(stderr,
+		"Usage: tc [ OPTIONS ] OBJECT { COMMAND | help }\n"
 		"       tc [-force] -batch filename\n"
 		"where  OBJECT := { qdisc | class | filter | action | monitor | exec }\n"
-		"       OPTIONS := { -s[tatistics] | -d[etails] | -r[aw] | -b[atch] [filename] | -n[etns] name |\n"
-		"                    -nm | -nam[es] | { -cf | -conf } path } |\n"
-		"                    -j[son] -p[retty] -c[olor]\n");
+		"       OPTIONS := { -V[ersion] | -s[tatistics] | -d[etails] | -r[aw] |\n"
+		"                    -o[neline] | -j[son] | -p[retty] | -c[olor]\n"
+		"                    -b[atch] [filename] | -n[etns] name |\n"
+		"                    -nm | -nam[es] | { -cf | -conf } path }\n");
 }
 
 static int do_cmd(int argc, char **argv, void *buf, size_t buflen)
@@ -225,8 +235,8 @@ static bool batchsize_enabled(int argc, char *argv[])
 		char *c;
 		char *subc[TC_MAX_SUBC];
 	} table[] = {
-		{"filter", {"add", "delete", "change", "replace", NULL}},
-		{"actions", {"add", "change", "replace", NULL}},
+		{ "filter", { "add", "delete", "change", "replace", NULL} },
+		{ "actions", { "add", "change", "replace", NULL} },
 		{ NULL },
 	}, *iter;
 	char *s;
@@ -263,11 +273,11 @@ static struct batch_buf *get_batch_buf(struct batch_buf **pool,
 	struct batch_buf *buf;
 
 	if (*pool == NULL)
-		buf = calloc(1, sizeof (struct batch_buf));
+		buf = calloc(1, sizeof(struct batch_buf));
 	else {
 		buf = *pool;
 		*pool = (*pool)->next;
-		memset(buf, 0, sizeof (struct batch_buf));
+		memset(buf, 0, sizeof(struct batch_buf));
 	}
 
 	if (*head == NULL)
@@ -326,7 +336,8 @@ static int batch(const char *name)
 	batch_mode = 1;
 	if (name && strcmp(name, "-") != 0) {
 		if (freopen(name, "r", stdin) == NULL) {
-			fprintf(stderr, "Cannot open file \"%s\" for reading: %s\n",
+			fprintf(stderr,
+				"Cannot open file \"%s\" for reading: %s\n",
 				name, strerror(errno));
 			return -1;
 		}
@@ -389,7 +400,7 @@ static int batch(const char *name)
 		}
 
 		ret = do_cmd(largc, largv, tail == NULL ? NULL : tail->buf,
-			     tail == NULL ? 0 : sizeof (tail->buf));
+			     tail == NULL ? 0 : sizeof(tail->buf));
 		if (ret != 0) {
 			fprintf(stderr, "Command failed %s:%d\n", name,
 				cmdlineno - 1);
@@ -405,7 +416,7 @@ static int batch(const char *name)
 			struct batch_buf *buf;
 			struct nlmsghdr *n;
 
-			iov = iovs = malloc(batchsize * sizeof (struct iovec));
+			iov = iovs = malloc(batchsize * sizeof(struct iovec));
 			for (buf = head; buf != NULL; buf = buf->next, ++iov) {
 				n = (struct nlmsghdr *)&buf->buf;
 				iov->iov_base = n;
@@ -487,12 +498,18 @@ int main(int argc, char **argv)
 			++timestamp_short;
 		} else if (matches(argv[1], "-json") == 0) {
 			++json;
+		} else if (matches(argv[1], "-oneline") == 0) {
+			++oneline;
 		} else {
-			fprintf(stderr, "Option \"%s\" is unknown, try \"tc -help\".\n", argv[1]);
+			fprintf(stderr,
+				"Option \"%s\" is unknown, try \"tc -help\".\n",
+				argv[1]);
 			return -1;
 		}
 		argc--;	argv++;
 	}
+
+	_SL_ = oneline ? "\\" : "\n";
 
 	if (color & !json)
 		enable_color();

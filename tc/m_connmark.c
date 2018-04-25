@@ -82,7 +82,6 @@ parse_connmark(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 	}
 
 	parse_action_control_dflt(&argc, &argv, &sel.action, false, TC_ACT_PIPE);
-	NEXT_ARG_FWD();
 
 	if (argc) {
 		if (matches(*argv, "index") == 0) {
@@ -121,7 +120,8 @@ static int print_connmark(struct action_util *au, FILE *f, struct rtattr *arg)
 
 	ci = RTA_DATA(tb[TCA_CONNMARK_PARMS]);
 
-	fprintf(f, " connmark zone %d\n", ci->zone);
+	fprintf(f, " connmark zone %d", ci->zone);
+	print_action_control(f, " ", ci->action, "\n");
 	fprintf(f, "\t index %u ref %d bind %d", ci->index,
 		ci->refcnt, ci->bindcnt);
 

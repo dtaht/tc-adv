@@ -634,7 +634,7 @@ static int bpf_gen_global(const char *bpf_sub_dir)
 
 static int bpf_gen_master(const char *base, const char *name)
 {
-	char bpf_sub_dir[PATH_MAX];
+	char bpf_sub_dir[PATH_MAX + NAME_MAX + 1];
 	int ret;
 
 	snprintf(bpf_sub_dir, sizeof(bpf_sub_dir), "%s%s/", base, name);
@@ -675,8 +675,8 @@ static int bpf_slave_via_bind_mnt(const char *full_name,
 static int bpf_gen_slave(const char *base, const char *name,
 			 const char *link)
 {
-	char bpf_lnk_dir[PATH_MAX];
-	char bpf_sub_dir[PATH_MAX];
+	char bpf_lnk_dir[PATH_MAX + NAME_MAX + 1];
+	char bpf_sub_dir[PATH_MAX + NAME_MAX];
 	struct stat sb = {};
 	int ret;
 
@@ -2039,6 +2039,7 @@ static int bpf_apply_relo_data(struct bpf_elf_ctx *ctx,
 		    insns[ioff].code != (BPF_LD | BPF_IMM | BPF_DW)) {
 			fprintf(stderr, "ELF contains relo data for non ld64 instruction at offset %u! Compiler bug?!\n",
 				ioff);
+			fprintf(stderr, " - Current section: %s\n", data_relo->sec_name);
 			if (ioff < num_insns &&
 			    insns[ioff].code == (BPF_JMP | BPF_CALL))
 				fprintf(stderr, " - Try to annotate functions with always_inline attribute!\n");
@@ -2592,7 +2593,7 @@ bpf_map_set_send(int fd, struct sockaddr_un *addr, unsigned int addr_len,
 	char *amsg_buf;
 	int i;
 
-	strncpy(msg.aux.obj_name, aux->obj, sizeof(msg.aux.obj_name));
+	strlcpy(msg.aux.obj_name, aux->obj, sizeof(msg.aux.obj_name));
 	memcpy(&msg.aux.obj_st, aux->st, sizeof(msg.aux.obj_st));
 
 	cmsg_buf = bpf_map_set_init(&msg, addr, addr_len);
@@ -2681,7 +2682,7 @@ int bpf_send_map_fds(const char *path, const char *obj)
 		return -1;
 	}
 
-	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
+	strlcpy(addr.sun_path, path, sizeof(addr.sun_path));
 
 	ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {
@@ -2714,7 +2715,7 @@ int bpf_recv_map_fds(const char *path, int *fds, struct bpf_map_aux *aux,
 		return -1;
 	}
 
-	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
+	strlcpy(addr.sun_path, path, sizeof(addr.sun_path));
 
 	ret = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0) {

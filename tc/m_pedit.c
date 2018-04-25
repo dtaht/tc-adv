@@ -111,7 +111,7 @@ reg:
 noexist:
 	p = calloc(1, sizeof(*p));
 	if (p) {
-		strncpy(p->id, str, sizeof(p->id) - 1);
+		strlcpy(p->id, str, sizeof(p->id));
 		p->parse_peopt = pedit_parse_nopopt;
 		goto reg;
 	}
@@ -672,7 +672,6 @@ int parse_pedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 
 	parse_action_control_dflt(&argc, &argv, &sel.sel.action, false, TC_ACT_OK);
 
-	NEXT_ARG_FWD();
 	if (argc) {
 		if (matches(*argv, "index") == 0) {
 			NEXT_ARG();

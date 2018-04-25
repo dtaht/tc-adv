@@ -155,6 +155,7 @@ struct flag_to_string {
 
 static struct flag_to_string flags_str[] = {
 	{ TCA_FLOWER_KEY_FLAGS_IS_FRAGMENT, FLOWER_IP_FLAGS, "frag" },
+	{ TCA_FLOWER_KEY_FLAGS_FRAG_IS_FIRST, FLOWER_IP_FLAGS, "firstfrag" },
 };
 
 static int flower_parse_matching_flags(char *str,
@@ -1233,7 +1234,7 @@ static void flower_print_port(char *name, struct rtattr *attr)
 		return;
 
 	sprintf(namefrm,"\n  %s %%u", name);
-	print_uint(PRINT_ANY, name, namefrm, rta_getattr_be16(attr));
+	print_hu(PRINT_ANY, name, namefrm, rta_getattr_be16(attr));
 }
 
 static void flower_print_tcp_flags(char *name, struct rtattr *flags_attr,

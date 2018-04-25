@@ -45,6 +45,10 @@
 #include <linux/netlink_diag.h>
 #include <linux/sctp.h>
 #include <linux/vm_sockets_diag.h>
+#include <linux/net.h>
+#include <linux/tipc.h>
+#include <linux/tipc_netlink.h>
+#include <linux/tipc_sockets_diag.h>
 
 #define MAGIC_SEQ 123456
 #define BUF_CHUNK (1024 * 1024)
@@ -104,6 +108,7 @@ int show_sock_ctx;
 int show_header = 1;
 int follow_events;
 int sctp_ino;
+int show_tipcinfo;
 
 enum col_id {
 	COL_NETID,
@@ -191,6 +196,7 @@ enum {
 	SCTP_DB,
 	VSOCK_ST_DB,
 	VSOCK_DG_DB,
+	TIPC_DB,
 	MAX_DB
 };
 
@@ -230,6 +236,7 @@ enum {
 
 #define SS_ALL ((1 << SS_MAX) - 1)
 #define SS_CONN (SS_ALL & ~((1<<SS_LISTEN)|(1<<SS_CLOSE)|(1<<SS_TIME_WAIT)|(1<<SS_SYN_RECV)))
+#define TIPC_SS_CONN ((1<<SS_ESTABLISHED)|(1<<SS_LISTEN)|(1<<SS_CLOSE))
 
 #include "ssfilter.h"
 
@@ -239,6 +246,7 @@ struct filter {
 	uint64_t families;
 	struct ssfilter *f;
 	bool kill;
+	struct rtnl_handle *rth_for_killing;
 };
 
 #define FAMILY_MASK(family) ((uint64_t)1 << (family))
@@ -296,6 +304,10 @@ static const struct filter default_dbs[MAX_DB] = {
 		.states   = SS_CONN,
 		.families = FAMILY_MASK(AF_VSOCK),
 	},
+	[TIPC_DB] = {
+		.states   = TIPC_SS_CONN,
+		.families = FAMILY_MASK(AF_TIPC),
+	},
 };
 
 static const struct filter default_afs[AF_MAX] = {
@@ -323,16 +335,79 @@ static const struct filter default_afs[AF_MAX] = {
 		.dbs    = VSOCK_DBM,
 		.states = SS_CONN,
 	},
+	[AF_TIPC] = {
+		.dbs    = (1 << TIPC_DB),
+		.states = TIPC_SS_CONN,
+	},
 };
 
 static int do_default = 1;
 static struct filter current_filter;
 
-static void filter_db_set(struct filter *f, int db)
+static void filter_db_set(struct filter *f, int db, bool enable)
 {
-	f->states   |= default_dbs[db].states;
-	f->dbs	    |= 1 << db;
+	if (enable) {
+		f->states   |= default_dbs[db].states;
+		f->dbs	    |= 1 << db;
+	} else {
+		f->dbs &= ~(1 << db);
+	}
 	do_default   = 0;
+}
+
+static int filter_db_parse(struct filter *f, const char *s)
+{
+	const struct {
+		const char *name;
+		int dbs[MAX_DB + 1];
+	} db_name_tbl[] = {
+#define ENTRY(name, ...) { #name, { __VA_ARGS__, MAX_DB } }
+		ENTRY(all, UDP_DB, DCCP_DB, TCP_DB, RAW_DB,
+			   UNIX_ST_DB, UNIX_DG_DB, UNIX_SQ_DB,
+			   PACKET_R_DB, PACKET_DG_DB, NETLINK_DB,
+			   SCTP_DB, VSOCK_ST_DB, VSOCK_DG_DB),
+		ENTRY(inet, UDP_DB, DCCP_DB, TCP_DB, SCTP_DB, RAW_DB),
+		ENTRY(udp, UDP_DB),
+		ENTRY(dccp, DCCP_DB),
+		ENTRY(tcp, TCP_DB),
+		ENTRY(sctp, SCTP_DB),
+		ENTRY(raw, RAW_DB),
+		ENTRY(unix, UNIX_ST_DB, UNIX_DG_DB, UNIX_SQ_DB),
+		ENTRY(unix_stream, UNIX_ST_DB),
+		ENTRY(u_str, UNIX_ST_DB),	/* alias for unix_stream */
+		ENTRY(unix_dgram, UNIX_DG_DB),
+		ENTRY(u_dgr, UNIX_DG_DB),	/* alias for unix_dgram */
+		ENTRY(unix_seqpacket, UNIX_SQ_DB),
+		ENTRY(u_seq, UNIX_SQ_DB),	/* alias for unix_seqpacket */
+		ENTRY(packet, PACKET_R_DB, PACKET_DG_DB),
+		ENTRY(packet_raw, PACKET_R_DB),
+		ENTRY(p_raw, PACKET_R_DB),	/* alias for packet_raw */
+		ENTRY(packet_dgram, PACKET_DG_DB),
+		ENTRY(p_dgr, PACKET_DG_DB),	/* alias for packet_dgram */
+		ENTRY(netlink, NETLINK_DB),
+		ENTRY(vsock, VSOCK_ST_DB, VSOCK_DG_DB),
+		ENTRY(vsock_stream, VSOCK_ST_DB),
+		ENTRY(v_str, VSOCK_ST_DB),	/* alias for vsock_stream */
+		ENTRY(vsock_dgram, VSOCK_DG_DB),
+		ENTRY(v_dgr, VSOCK_DG_DB),	/* alias for vsock_dgram */
+#undef ENTRY
+	};
+	bool enable = true;
+	unsigned int i;
+	const int *dbp;
+
+	if (s[0] == '!') {
+		enable = false;
+		s++;
+	}
+	for (i = 0; i < ARRAY_SIZE(db_name_tbl); i++) {
+		if (strcmp(s, db_name_tbl[i].name))
+			continue;
+		for (dbp = db_name_tbl[i].dbs; *dbp != MAX_DB; dbp++)
+			filter_db_set(f, *dbp, enable);
+		return 0;
+	}
+	return -1;
 }
 
 static void filter_af_set(struct filter *f, int af)
@@ -346,23 +421,6 @@ static void filter_af_set(struct filter *f, int af)
 static int filter_af_get(struct filter *f, int af)
 {
 	return !!(f->families & FAMILY_MASK(af));
-}
-
-static void filter_default_dbs(struct filter *f)
-{
-	filter_db_set(f, UDP_DB);
-	filter_db_set(f, DCCP_DB);
-	filter_db_set(f, TCP_DB);
-	filter_db_set(f, RAW_DB);
-	filter_db_set(f, UNIX_ST_DB);
-	filter_db_set(f, UNIX_DG_DB);
-	filter_db_set(f, UNIX_SQ_DB);
-	filter_db_set(f, PACKET_R_DB);
-	filter_db_set(f, PACKET_DG_DB);
-	filter_db_set(f, NETLINK_DB);
-	filter_db_set(f, SCTP_DB);
-	filter_db_set(f, VSOCK_ST_DB);
-	filter_db_set(f, VSOCK_DG_DB);
 }
 
 static void filter_states_set(struct filter *f, int states)
@@ -747,6 +805,14 @@ static const char *sctp_sstate_name[] = {
 	[SCTP_STATE_SHUTDOWN_ACK_SENT] = "ACK_SENT",
 };
 
+static const char * const stype_nameg[] = {
+	"UNKNOWN",
+	[SOCK_STREAM] = "STREAM",
+	[SOCK_DGRAM] = "DGRAM",
+	[SOCK_RDM] = "RDM",
+	[SOCK_SEQPACKET] = "SEQPACKET",
+};
+
 struct sockstat {
 	struct sockstat	   *next;
 	unsigned int	    type;
@@ -882,6 +948,22 @@ static const char *vsock_netid_name(int type)
 		return "v_str";
 	case SOCK_DGRAM:
 		return "v_dgr";
+	default:
+		return "???";
+	}
+}
+
+static const char *tipc_netid_name(int type)
+{
+	switch (type) {
+	case SOCK_STREAM:
+		return "ti_st";
+	case SOCK_DGRAM:
+		return "ti_dg";
+	case SOCK_RDM:
+		return "ti_rd";
+	case SOCK_SEQPACKET:
+		return "ti_sq";
 	default:
 		return "???";
 	}
@@ -1105,15 +1187,33 @@ static void buf_free_all(void)
 	buffer.head = NULL;
 }
 
+/* Get current screen width, default to 80 columns if TIOCGWINSZ fails */
+static int render_screen_width(void)
+{
+	int width = 80;
+
+	if (isatty(STDOUT_FILENO)) {
+		struct winsize w;
+
+		if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
+			if (w.ws_col > 0)
+				width = w.ws_col;
+		}
+	}
+
+	return width;
+}
+
 /* Calculate column width from contents length. If columns don't fit on one
  * line, break them into the least possible amount of lines and keep them
  * aligned across lines. Available screen space is equally spread between fields
  * as additional spacing.
  */
-static void render_calc_width(int screen_width)
+static void render_calc_width(void)
 {
-	int first, len = 0, linecols = 0;
+	int screen_width = render_screen_width();
 	struct column *c, *eol = columns - 1;
+	int first, len = 0, linecols = 0;
 
 	/* First pass: set width for each column to measured content length */
 	for (first = 1, c = columns; c - columns < COL_MAX; c++) {
@@ -1194,16 +1294,21 @@ newline:
 }
 
 /* Render buffered output with spacing and delimiters, then free up buffers */
-static void render(int screen_width)
+static void render(void)
 {
-	struct buf_token *token = (struct buf_token *)buffer.head->data;
+	struct buf_token *token;
 	int printed, line_started = 0;
 	struct column *f;
+
+	if (!buffer.head)
+		return;
+
+	token = (struct buf_token *)buffer.head->data;
 
 	/* Ensure end alignment of last token, it wasn't necessarily flushed */
 	buffer.tail->end += buffer.cur->len % 2;
 
-	render_calc_width(screen_width);
+	render_calc_width();
 
 	/* Rewind and replay */
 	buffer.tail = buffer.head;
@@ -1239,6 +1344,7 @@ static void render(int screen_width)
 	}
 
 	buf_free_all();
+	current_field = columns;
 }
 
 static void sock_state_print(struct sockstat *s)
@@ -1272,6 +1378,9 @@ static void sock_state_print(struct sockstat *s)
 		break;
 	case AF_NETLINK:
 		sock_name = "nl";
+		break;
+	case AF_TIPC:
+		sock_name = tipc_netid_name(s->type);
 		break;
 	case AF_VSOCK:
 		sock_name = vsock_netid_name(s->type);
@@ -4029,7 +4138,7 @@ static int netlink_show_one(struct filter *f,
 
 		if (!pid) {
 			done = 1;
-			strncpy(procname, "kernel", 6);
+			strncpy(procname, "kernel", 7);
 		} else if (pid > 0) {
 			FILE *fp;
 
@@ -4252,6 +4361,105 @@ static int vsock_show(struct filter *f)
 	return handle_netlink_request(f, &req.nlh, sizeof(req), vsock_show_sock);
 }
 
+static void tipc_sock_addr_print(struct rtattr *net_addr, struct rtattr *id)
+{
+	uint32_t node = rta_getattr_u32(net_addr);
+	uint32_t identity = rta_getattr_u32(id);
+
+	SPRINT_BUF(addr) = {};
+	SPRINT_BUF(port) = {};
+
+	sprintf(addr, "%u", node);
+	sprintf(port, "%u", identity);
+	sock_addr_print(addr, ":", port, NULL);
+
+}
+
+static int tipc_show_sock(const struct sockaddr_nl *addr, struct nlmsghdr *nlh,
+			  void *arg)
+{
+	struct rtattr *stat[TIPC_NLA_SOCK_STAT_MAX + 1] = {};
+	struct rtattr *attrs[TIPC_NLA_SOCK_MAX + 1] = {};
+	struct rtattr *con[TIPC_NLA_CON_MAX + 1] = {};
+	struct rtattr *info[TIPC_NLA_MAX + 1] = {};
+	struct rtattr *msg_ref;
+	struct sockstat ss = {};
+
+	parse_rtattr(info, TIPC_NLA_MAX, NLMSG_DATA(nlh),
+		     NLMSG_PAYLOAD(nlh, 0));
+
+	if (!info[TIPC_NLA_SOCK])
+		return 0;
+
+	msg_ref = info[TIPC_NLA_SOCK];
+	parse_rtattr(attrs, TIPC_NLA_SOCK_MAX, RTA_DATA(msg_ref),
+		     RTA_PAYLOAD(msg_ref));
+
+	msg_ref = attrs[TIPC_NLA_SOCK_STAT];
+	parse_rtattr(stat, TIPC_NLA_SOCK_STAT_MAX,
+		     RTA_DATA(msg_ref), RTA_PAYLOAD(msg_ref));
+
+
+	ss.local.family = AF_TIPC;
+	ss.type = rta_getattr_u32(attrs[TIPC_NLA_SOCK_TYPE]);
+	ss.state = rta_getattr_u32(attrs[TIPC_NLA_SOCK_TIPC_STATE]);
+	ss.uid = rta_getattr_u32(attrs[TIPC_NLA_SOCK_UID]);
+	ss.ino = rta_getattr_u32(attrs[TIPC_NLA_SOCK_INO]);
+	ss.rq = rta_getattr_u32(stat[TIPC_NLA_SOCK_STAT_RCVQ]);
+	ss.wq = rta_getattr_u32(stat[TIPC_NLA_SOCK_STAT_SENDQ]);
+	ss.sk = rta_getattr_u64(attrs[TIPC_NLA_SOCK_COOKIE]);
+
+	sock_state_print (&ss);
+
+	tipc_sock_addr_print(attrs[TIPC_NLA_SOCK_ADDR],
+			     attrs[TIPC_NLA_SOCK_REF]);
+
+	msg_ref = attrs[TIPC_NLA_SOCK_CON];
+	if (msg_ref) {
+		parse_rtattr(con, TIPC_NLA_CON_MAX,
+			     RTA_DATA(msg_ref), RTA_PAYLOAD(msg_ref));
+
+		tipc_sock_addr_print(con[TIPC_NLA_CON_NODE],
+				     con[TIPC_NLA_CON_SOCK]);
+	} else
+		sock_addr_print("", "-", "", NULL);
+
+	if (show_details)
+		sock_details_print(&ss);
+
+	proc_ctx_print(&ss);
+
+	if (show_tipcinfo) {
+		out("\n type:%s", stype_nameg[ss.type]);
+		out(" cong:%s ",
+		       stat[TIPC_NLA_SOCK_STAT_LINK_CONG] ? "link" :
+		       stat[TIPC_NLA_SOCK_STAT_CONN_CONG] ? "conn" : "none");
+		out(" drop:%d ",
+		       rta_getattr_u32(stat[TIPC_NLA_SOCK_STAT_DROP]));
+
+		if (attrs[TIPC_NLA_SOCK_HAS_PUBL])
+			out(" publ");
+
+		if (con[TIPC_NLA_CON_FLAG])
+			out(" via {%u,%u} ",
+			       rta_getattr_u32(con[TIPC_NLA_CON_TYPE]),
+			       rta_getattr_u32(con[TIPC_NLA_CON_INST]));
+	}
+
+	return 0;
+}
+
+static int tipc_show(struct filter *f)
+{
+	DIAG_REQUEST(req, struct tipc_sock_diag_req r);
+
+	memset(&req.r, 0, sizeof(req.r));
+	req.r.sdiag_family = AF_TIPC;
+	req.r.tidiag_states = f->states;
+
+	return handle_netlink_request(f, &req.nlh, sizeof(req), tipc_show_sock);
+}
+
 struct sock_diag_msg {
 	__u8 sdiag_family;
 };
@@ -4261,29 +4469,40 @@ static int generic_show_sock(const struct sockaddr_nl *addr,
 {
 	struct sock_diag_msg *r = NLMSG_DATA(nlh);
 	struct inet_diag_arg inet_arg = { .f = arg, .protocol = IPPROTO_MAX };
+	int ret;
 
 	switch (r->sdiag_family) {
 	case AF_INET:
 	case AF_INET6:
-		return show_one_inet_sock(addr, nlh, &inet_arg);
+		inet_arg.rth = inet_arg.f->rth_for_killing;
+		ret = show_one_inet_sock(addr, nlh, &inet_arg);
+		break;
 	case AF_UNIX:
-		return unix_show_sock(addr, nlh, arg);
+		ret = unix_show_sock(addr, nlh, arg);
+		break;
 	case AF_PACKET:
-		return packet_show_sock(addr, nlh, arg);
+		ret = packet_show_sock(addr, nlh, arg);
+		break;
 	case AF_NETLINK:
-		return netlink_show_sock(addr, nlh, arg);
+		ret = netlink_show_sock(addr, nlh, arg);
+		break;
 	case AF_VSOCK:
-		return vsock_show_sock(addr, nlh, arg);
+		ret = vsock_show_sock(addr, nlh, arg);
+		break;
 	default:
-		return -1;
+		ret = -1;
 	}
+
+	render();
+
+	return ret;
 }
 
 static int handle_follow_request(struct filter *f)
 {
 	int ret = 0;
 	int groups = 0;
-	struct rtnl_handle rth;
+	struct rtnl_handle rth, rth2;
 
 	if (f->families & FAMILY_MASK(AF_INET) && f->dbs & (1 << TCP_DB))
 		groups |= 1 << (SKNLGRP_INET_TCP_DESTROY - 1);
@@ -4303,10 +4522,20 @@ static int handle_follow_request(struct filter *f)
 	rth.dump = 0;
 	rth.local.nl_pid = 0;
 
+	if (f->kill) {
+		if (rtnl_open_byproto(&rth2, groups, NETLINK_SOCK_DIAG)) {
+			rtnl_close(&rth);
+			return -1;
+		}
+		f->rth_for_killing = &rth2;
+	}
+
 	if (rtnl_dump_filter(&rth, generic_show_sock, f))
 		ret = -1;
 
 	rtnl_close(&rth);
+	if (f->rth_for_killing)
+		rtnl_close(f->rth_for_killing);
 	return ret;
 }
 
@@ -4485,6 +4714,7 @@ static void _usage(FILE *dest)
 "   -m, --memory        show socket memory usage\n"
 "   -p, --processes     show process using socket\n"
 "   -i, --info          show internal TCP information\n"
+"       --tipcinfo      show internal tipc socket information\n"
 "   -s, --summary       show socket usage summary\n"
 "   -b, --bpf           show bpf filter socket information\n"
 "   -E, --events        continually display sockets as they are destroyed\n"
@@ -4501,15 +4731,16 @@ static void _usage(FILE *dest)
 "   -d, --dccp          display only DCCP sockets\n"
 "   -w, --raw           display only RAW sockets\n"
 "   -x, --unix          display only Unix domain sockets\n"
+"       --tipc          display only TIPC sockets\n"
 "       --vsock         display only vsock sockets\n"
 "   -f, --family=FAMILY display sockets of type FAMILY\n"
-"       FAMILY := {inet|inet6|link|unix|netlink|vsock|help}\n"
+"       FAMILY := {inet|inet6|link|unix|netlink|vsock|tipc|help}\n"
 "\n"
 "   -K, --kill          forcibly close sockets, display what was closed\n"
 "   -H, --no-header     Suppress header line\n"
 "\n"
 "   -A, --query=QUERY, --socket=QUERY\n"
-"       QUERY := {all|inet|tcp|udp|raw|unix|unix_dgram|unix_stream|unix_seqpacket|packet|netlink|vsock_stream|vsock_dgram}[,QUERY]\n"
+"       QUERY := {all|inet|tcp|udp|raw|unix|unix_dgram|unix_stream|unix_seqpacket|packet|netlink|vsock_stream|vsock_dgram|tipc}[,QUERY]\n"
 "\n"
 "   -D, --diag=FILE     Dump raw information about TCP sockets to FILE\n"
 "   -F, --filter=FILE   read filter information from FILE\n"
@@ -4585,6 +4816,10 @@ static int scan_state(const char *state)
 /* Values 'v' and 'V' are already used so a non-character is used */
 #define OPT_VSOCK 256
 
+/* Values of 't' are already used so a non-character is used */
+#define OPT_TIPCSOCK 257
+#define OPT_TIPCINFO 258
+
 static const struct option long_opts[] = {
 	{ "numeric", 0, 0, 'n' },
 	{ "resolve", 0, 0, 'r' },
@@ -4601,6 +4836,7 @@ static const struct option long_opts[] = {
 	{ "udp", 0, 0, 'u' },
 	{ "raw", 0, 0, 'w' },
 	{ "unix", 0, 0, 'x' },
+	{ "tipc", 0, 0, OPT_TIPCSOCK},
 	{ "vsock", 0, 0, OPT_VSOCK },
 	{ "all", 0, 0, 'a' },
 	{ "listening", 0, 0, 'l' },
@@ -4618,6 +4854,7 @@ static const struct option long_opts[] = {
 	{ "context", 0, 0, 'Z' },
 	{ "contexts", 0, 0, 'z' },
 	{ "net", 1, 0, 'N' },
+	{ "tipcinfo", 0, 0, OPT_TIPCINFO},
 	{ "kill", 0, 0, 'K' },
 	{ "no-header", 0, 0, 'H' },
 	{ 0 }
@@ -4633,7 +4870,6 @@ int main(int argc, char *argv[])
 	FILE *filter_fp = NULL;
 	int ch;
 	int state_filter = 0;
-	int screen_width = 80;
 
 	while ((ch = getopt_long(argc, argv,
 				 "dhaletuwxnro460spbEf:miA:D:F:vVzZN:KHS",
@@ -4670,25 +4906,28 @@ int main(int argc, char *argv[])
 			follow_events = 1;
 			break;
 		case 'd':
-			filter_db_set(&current_filter, DCCP_DB);
+			filter_db_set(&current_filter, DCCP_DB, true);
 			break;
 		case 't':
-			filter_db_set(&current_filter, TCP_DB);
+			filter_db_set(&current_filter, TCP_DB, true);
 			break;
 		case 'S':
-			filter_db_set(&current_filter, SCTP_DB);
+			filter_db_set(&current_filter, SCTP_DB, true);
 			break;
 		case 'u':
-			filter_db_set(&current_filter, UDP_DB);
+			filter_db_set(&current_filter, UDP_DB, true);
 			break;
 		case 'w':
-			filter_db_set(&current_filter, RAW_DB);
+			filter_db_set(&current_filter, RAW_DB, true);
 			break;
 		case 'x':
 			filter_af_set(&current_filter, AF_UNIX);
 			break;
 		case OPT_VSOCK:
 			filter_af_set(&current_filter, AF_VSOCK);
+			break;
+		case OPT_TIPCSOCK:
+			filter_af_set(&current_filter, AF_TIPC);
 			break;
 		case 'a':
 			state_filter = SS_ALL;
@@ -4716,6 +4955,8 @@ int main(int argc, char *argv[])
 				filter_af_set(&current_filter, AF_UNIX);
 			else if (strcmp(optarg, "netlink") == 0)
 				filter_af_set(&current_filter, AF_NETLINK);
+			else if (strcmp(optarg, "tipc") == 0)
+				filter_af_set(&current_filter, AF_TIPC);
 			else if (strcmp(optarg, "vsock") == 0)
 				filter_af_set(&current_filter, AF_VSOCK);
 			else if (strcmp(optarg, "help") == 0)
@@ -4741,58 +4982,7 @@ int main(int argc, char *argv[])
 			do {
 				if ((p1 = strchr(p, ',')) != NULL)
 					*p1 = 0;
-				if (strcmp(p, "all") == 0) {
-					filter_default_dbs(&current_filter);
-				} else if (strcmp(p, "inet") == 0) {
-					filter_db_set(&current_filter, UDP_DB);
-					filter_db_set(&current_filter, DCCP_DB);
-					filter_db_set(&current_filter, TCP_DB);
-					filter_db_set(&current_filter, SCTP_DB);
-					filter_db_set(&current_filter, RAW_DB);
-				} else if (strcmp(p, "udp") == 0) {
-					filter_db_set(&current_filter, UDP_DB);
-				} else if (strcmp(p, "dccp") == 0) {
-					filter_db_set(&current_filter, DCCP_DB);
-				} else if (strcmp(p, "tcp") == 0) {
-					filter_db_set(&current_filter, TCP_DB);
-				} else if (strcmp(p, "sctp") == 0) {
-					filter_db_set(&current_filter, SCTP_DB);
-				} else if (strcmp(p, "raw") == 0) {
-					filter_db_set(&current_filter, RAW_DB);
-				} else if (strcmp(p, "unix") == 0) {
-					filter_db_set(&current_filter, UNIX_ST_DB);
-					filter_db_set(&current_filter, UNIX_DG_DB);
-					filter_db_set(&current_filter, UNIX_SQ_DB);
-				} else if (strcasecmp(p, "unix_stream") == 0 ||
-					   strcmp(p, "u_str") == 0) {
-					filter_db_set(&current_filter, UNIX_ST_DB);
-				} else if (strcasecmp(p, "unix_dgram") == 0 ||
-					   strcmp(p, "u_dgr") == 0) {
-					filter_db_set(&current_filter, UNIX_DG_DB);
-				} else if (strcasecmp(p, "unix_seqpacket") == 0 ||
-					   strcmp(p, "u_seq") == 0) {
-					filter_db_set(&current_filter, UNIX_SQ_DB);
-				} else if (strcmp(p, "packet") == 0) {
-					filter_db_set(&current_filter, PACKET_R_DB);
-					filter_db_set(&current_filter, PACKET_DG_DB);
-				} else if (strcmp(p, "packet_raw") == 0 ||
-					   strcmp(p, "p_raw") == 0) {
-					filter_db_set(&current_filter, PACKET_R_DB);
-				} else if (strcmp(p, "packet_dgram") == 0 ||
-					   strcmp(p, "p_dgr") == 0) {
-					filter_db_set(&current_filter, PACKET_DG_DB);
-				} else if (strcmp(p, "netlink") == 0) {
-					filter_db_set(&current_filter, NETLINK_DB);
-				} else if (strcmp(p, "vsock") == 0) {
-					filter_db_set(&current_filter, VSOCK_ST_DB);
-					filter_db_set(&current_filter, VSOCK_DG_DB);
-				} else if (strcmp(p, "vsock_stream") == 0 ||
-					   strcmp(p, "v_str") == 0) {
-					filter_db_set(&current_filter, VSOCK_ST_DB);
-				} else if (strcmp(p, "vsock_dgram") == 0 ||
-					   strcmp(p, "v_dgr") == 0) {
-					filter_db_set(&current_filter, VSOCK_DG_DB);
-				} else {
+				if (filter_db_parse(&current_filter, p)) {
 					fprintf(stderr, "ss: \"%s\" is illegal socket table id\n", p);
 					usage();
 				}
@@ -4839,6 +5029,9 @@ int main(int argc, char *argv[])
 			if (netns_switch(optarg))
 				exit(1);
 			break;
+		case OPT_TIPCINFO:
+			show_tipcinfo = 1;
+			break;
 		case 'K':
 			current_filter.kill = 1;
 			break;
@@ -4884,7 +5077,7 @@ int main(int argc, char *argv[])
 
 	if (do_default) {
 		state_filter = state_filter ? state_filter : SS_CONN;
-		filter_default_dbs(&current_filter);
+		filter_db_parse(&current_filter, "all");
 	}
 
 	filter_states_set(&current_filter, state_filter);
@@ -4935,15 +5128,6 @@ int main(int argc, char *argv[])
 	if (!(current_filter.states & (current_filter.states - 1)))
 		columns[COL_STATE].disabled = 1;
 
-	if (isatty(STDOUT_FILENO)) {
-		struct winsize w;
-
-		if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) != -1) {
-			if (w.ws_col > 0)
-				screen_width = w.ws_col;
-		}
-	}
-
 	if (show_header)
 		print_header();
 
@@ -4970,11 +5154,13 @@ int main(int argc, char *argv[])
 		sctp_show(&current_filter);
 	if (current_filter.dbs & VSOCK_DBM)
 		vsock_show(&current_filter);
+	if (current_filter.dbs & (1<<TIPC_DB))
+		tipc_show(&current_filter);
 
 	if (show_users || show_proc_ctx || show_sock_ctx)
 		user_ent_destroy();
 
-	render(screen_width);
+	render();
 
 	return 0;
 }

@@ -172,6 +172,19 @@ int main(int argc, char **argv)
 {
 	char *basename;
 	char *batch_file = NULL;
+	int color = 0;
+
+	/* to run vrf exec without root, capabilities might be set, drop them
+	 * if not needed as the first thing.
+	 * execv will drop them for the child command.
+	 * vrf exec requires:
+	 * - cap_dac_override to create the cgroup subdir in /sys
+	 * - cap_sys_admin to load the BPF program
+	 * - cap_net_admin to set the socket into the cgroup
+	 */
+	if (argc < 3 || strcmp(argv[1], "vrf") != 0 ||
+			strcmp(argv[2], "exec") != 0)
+		drop_cap();
 
 	basename = strrchr(argv[0], '/');
 	if (basename == NULL)
@@ -271,7 +284,7 @@ int main(int argc, char **argv)
 			}
 			rcvbuf = size;
 		} else if (matches(opt, "-color") == 0) {
-			enable_color();
+			++color;
 		} else if (matches(opt, "-help") == 0) {
 			usage();
 		} else if (matches(opt, "-netns") == 0) {
@@ -291,8 +304,8 @@ int main(int argc, char **argv)
 
 	_SL_ = oneline ? "\\" : "\n";
 
-	if (json)
-		check_if_color_enabled();
+	if (color && !json)
+		enable_color();
 
 	if (batch_file)
 		return batch(batch_file);

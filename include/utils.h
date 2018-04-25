@@ -182,6 +182,7 @@ void missarg(const char *) __attribute__((noreturn));
 void invarg(const char *, const char *) __attribute__((noreturn));
 void duparg(const char *, const char *) __attribute__((noreturn));
 void duparg2(const char *, const char *) __attribute__((noreturn));
+int nodev(const char *dev);
 int check_ifname(const char *);
 int get_ifname(char *, const char *);
 const char *get_ifname_rta(int ifindex, const struct rtattr *rta);
@@ -306,5 +307,7 @@ int get_rtnl_link_stats_rta(struct rtnl_link_stats64 *stats64,
 size_t strlcpy(char *dst, const char *src, size_t size);
 size_t strlcat(char *dst, const char *src, size_t size);
 #endif
+
+void drop_cap(void);
 
 #endif /* __UTILS_H__ */

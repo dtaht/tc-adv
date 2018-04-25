@@ -312,7 +312,7 @@ static int brlink_modify(int argc, char **argv)
 				return -1;
 		} else if (strcmp(*argv, "hairpin") == 0) {
 			NEXT_ARG();
-			if (!on_off("hairping", &hairpin, *argv))
+			if (!on_off("hairpin", &hairpin, *argv))
 				return -1;
 		} else if (strcmp(*argv, "fastleave") == 0) {
 			NEXT_ARG();
@@ -485,11 +485,9 @@ static int brlink_show(int argc, char **argv)
 	}
 
 	if (filter_dev) {
-		if ((filter_index = ll_name_to_index(filter_dev)) == 0) {
-			fprintf(stderr, "Cannot find device \"%s\"\n",
-				filter_dev);
-			return -1;
-		}
+		filter_index = ll_name_to_index(filter_dev);
+		if (!filter_index)
+			return nodev(filter_dev);
 	}
 
 	if (show_details) {

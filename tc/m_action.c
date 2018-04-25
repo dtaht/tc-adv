@@ -301,19 +301,21 @@ static int tc_print_one_action(FILE *f, struct rtattr *arg)
 		return err;
 
 	if (show_stats && tb[TCA_ACT_STATS]) {
-		print_string(PRINT_FP, NULL, "\tAction statistics:\n", NULL);
+		print_string(PRINT_FP, NULL, "\tAction statistics:", NULL);
+		print_string(PRINT_FP, NULL, "%s", _SL_);
 		open_json_object("stats");
 		print_tcstats2_attr(f, tb[TCA_ACT_STATS], "\t", NULL);
 		close_json_object();
-		print_string(PRINT_FP, NULL, "\n", NULL);
+		print_string(PRINT_FP, NULL, "%s", _SL_);
 	}
 	if (tb[TCA_ACT_COOKIE]) {
 		int strsz = RTA_PAYLOAD(tb[TCA_ACT_COOKIE]);
 		char b1[strsz * 2 + 1];
 
-		print_string(PRINT_ANY, "cookie", "\tcookie %s\n",
+		print_string(PRINT_ANY, "cookie", "\tcookie %s",
 			     hexstring_n2a(RTA_DATA(tb[TCA_ACT_COOKIE]),
 					   strsz, b1, sizeof(b1)));
+		print_string(PRINT_FP, NULL, "%s", _SL_);
 	}
 
 	return 0;
@@ -365,11 +367,12 @@ tc_print_action(FILE *f, const struct rtattr *arg, unsigned short tot_acts)
 		return tc_print_action_flush(f, tb[0]);
 
 	open_json_array(PRINT_JSON, "actions");
-	for (i = 0; i < tot_acts; i++) {
+	for (i = 0; i <= tot_acts; i++) {
 		if (tb[i]) {
 			open_json_object(NULL);
+			print_string(PRINT_FP, NULL, "%s", _SL_);
 			print_uint(PRINT_ANY, "order",
-				   "\n\taction order %u: ", i);
+				   "\taction order %u: ", i);
 			if (tc_print_one_action(f, tb[i]) < 0) {
 				print_string(PRINT_FP, NULL,
 					     "Error printing action\n", NULL);
@@ -405,7 +408,11 @@ int print_action(const struct sockaddr_nl *who,
 	if (tb[TCA_ROOT_COUNT])
 		tot_acts = RTA_DATA(tb[TCA_ROOT_COUNT]);
 
-	fprintf(fp, "total acts %d\n", tot_acts ? *tot_acts:0);
+	open_json_object(NULL);
+	print_uint(PRINT_ANY, "total acts", "total acts %u",
+		   tot_acts ? *tot_acts : 0);
+	print_string(PRINT_FP, NULL, "%s", _SL_);
+	close_json_object();
 	if (tb[TCA_ACT_TAB] == NULL) {
 		if (n->nlmsg_type != RTM_GETACTION)
 			fprintf(stderr, "print_action: NULL kind\n");
@@ -430,8 +437,9 @@ int print_action(const struct sockaddr_nl *who,
 		}
 	}
 
-
+	open_json_object(NULL);
 	tc_print_action(fp, tb[TCA_ACT_TAB], tot_acts ? *tot_acts:0);
+	close_json_object();
 
 	return 0;
 }
@@ -531,10 +539,16 @@ static int tc_action_gd(int cmd, unsigned int flags,
 		return 1;
 	}
 
-	if (cmd == RTM_GETACTION && print_action(NULL, ans, stdout) < 0) {
-		fprintf(stderr, "Dump terminated\n");
-		free(ans);
-		return 1;
+	if (cmd == RTM_GETACTION) {
+		new_json_obj(json);
+		ret = print_action(NULL, ans, stdout);
+		if (ret < 0) {
+			fprintf(stderr, "Dump terminated\n");
+			free(ans);
+			delete_json_obj();
+			return 1;
+		}
+		delete_json_obj();
 	}
 	free(ans);
 
@@ -675,7 +689,9 @@ static int tc_act_list_or_flush(int *argc_p, char ***argv_p, int event)
 			perror("Cannot send dump request");
 			return 1;
 		}
+		new_json_obj(json);
 		ret = rtnl_dump_filter(&rth, print_action, stdout);
+		delete_json_obj();
 	}
 
 	if (event == RTM_DELACTION) {

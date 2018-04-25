@@ -103,6 +103,7 @@ parse_direction(struct action_util *a, int *argc_p, char ***argv_p,
 	while (argc > 0) {
 
 		if (matches(*argv, "action") == 0) {
+			NEXT_ARG();
 			break;
 		} else if (!egress && matches(*argv, "egress") == 0) {
 			egress = 1;
@@ -193,19 +194,15 @@ parse_direction(struct action_util *a, int *argc_p, char ***argv_p,
 		ll_init_map(&rth);
 
 		idx = ll_name_to_index(d);
-		if (idx == 0) {
-			fprintf(stderr, "Cannot find device \"%s\"\n", d);
-			return -1;
-		}
+		if (!idx)
+			return nodev(d);
 
 		p.ifindex = idx;
 	}
 
 
-	if (p.eaction == TCA_EGRESS_MIRROR || p.eaction == TCA_INGRESS_MIRROR) {
+	if (p.eaction == TCA_EGRESS_MIRROR || p.eaction == TCA_INGRESS_MIRROR)
 		parse_action_control(&argc, &argv, &p.action, false);
-		NEXT_ARG_FWD();
-	}
 
 	if (argc) {
 		if (iok && matches(*argv, "index") == 0) {
