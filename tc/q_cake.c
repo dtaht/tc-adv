@@ -560,7 +560,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	print_int(PRINT_ANY, "overhead", "overhead %d ", overhead);
 
 	if (mpu)
-		print_uint(PRINT_ANY, "mpu", "mpu %" PRIu64 " ", mpu);
+		print_uint(PRINT_ANY, "mpu", "mpu %u ", mpu);
 
 	if (memlimit) {
 		print_uint(PRINT_JSON, "memlimit", NULL, memlimit);
