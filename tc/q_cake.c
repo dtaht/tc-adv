@@ -21,6 +21,32 @@
 #include "utils.h"
 #include "tc_util.h"
 
+struct cake_preset {
+	char *name;
+	unsigned int target;
+	unsigned int interval;
+};
+
+static struct cake_preset presets[] = {
+	{"datacentre",		5, 		100},
+	{"lan", 		50, 		1000},
+	{"metro", 		500, 		10000},
+	{"regional", 		1500, 		30000},
+	{"internet", 		5000, 		100000},
+	{"oceanic", 		15000, 		300000},
+	{"satellite", 		50000, 		1000000},
+	{"interplanetary", 	50000000, 	1000000000},
+};
+
+
+static struct cake_preset *find_preset(char *argv)
+{
+	for (int i = 0; i < ARRAY_SIZE(presets); i++)
+		if (!strcmp(argv, presets[i].name))
+			return &presets[i];
+	return NULL;
+}
+
 static void explain(void)
 {
 	fprintf(stderr,
@@ -60,6 +86,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int ingress = -1;
 	int ack_filter = -1;
 	struct rtattr *tail;
+	struct cake_preset *preset, *preset_set = NULL;
 
 	while (argc > 0) {
 		if (strcmp(*argv, "bandwidth") == 0) {
@@ -86,30 +113,12 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			target = interval / 20;
 			if(!target)
 				target = 1;
-		} else if (strcmp(*argv, "datacentre") == 0) {
-			interval = 100;
-			target   =   5;
-		} else if (strcmp(*argv, "lan") == 0) {
-			interval = 1000;
-			target   =   50;
-		} else if (strcmp(*argv, "metro") == 0) {
-			interval = 10000;
-			target   =   500;
-		} else if (strcmp(*argv, "regional") == 0) {
-			interval = 30000;
-			target    = 1500;
-		} else if (strcmp(*argv, "internet") == 0) {
-			interval = 100000;
-			target   =   5000;
-		} else if (strcmp(*argv, "oceanic") == 0) {
-			interval = 300000;
-			target   =  15000;
-		} else if (strcmp(*argv, "satellite") == 0) {
-			interval = 1000000;
-			target   =   50000;
-		} else if (strcmp(*argv, "interplanetary") == 0) {
-			interval = 1000000000;
-			target   =   50000000;
+		} else if ((preset = find_preset(*argv))) {
+			if (preset_set)
+				duparg(*argv, preset_set->name);
+			preset_set = preset;
+			target = preset->target;
+			interval = preset->interval;
 
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = CAKE_DIFFSERV_BESTEFFORT;
