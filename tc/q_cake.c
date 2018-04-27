@@ -582,7 +582,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 static void cake_print_json_tin(struct rtattr **tstat)
 {
 #define PRINT_TSTAT_JSON(type, name, attr) if (tstat[TCA_CAKE_TIN_STATS_ ## attr]) \
-		print_uint(PRINT_JSON, name, NULL,			\
+		print_u64(PRINT_JSON, name, NULL,			\
 			rta_getattr_ ## type((struct rtattr *)tstat[TCA_CAKE_TIN_STATS_ ## attr]))
 
 	open_json_object(NULL);
