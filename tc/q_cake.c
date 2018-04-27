@@ -28,14 +28,14 @@ struct cake_preset {
 };
 
 static struct cake_preset presets[] = {
-	{"datacentre",		5, 		100},
-	{"lan", 		50, 		1000},
-	{"metro", 		500, 		10000},
-	{"regional", 		1500, 		30000},
-	{"internet", 		5000, 		100000},
-	{"oceanic", 		15000, 		300000},
-	{"satellite", 		50000, 		1000000},
-	{"interplanetary", 	50000000, 	1000000000},
+	{"datacentre",		5,		100},
+	{"lan",			50,		1000},
+	{"metro",		500,		10000},
+	{"regional",		1500,		30000},
+	{"internet",		5000,		100000},
+	{"oceanic",		15000,		300000},
+	{"satellite",		50000,		1000000},
+	{"interplanetary",	50000000,	1000000000},
 };
 
 
