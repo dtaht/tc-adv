@@ -235,6 +235,11 @@ void jsonw_xint(json_writer_t *self, uint64_t num)
 	jsonw_printf(self, "%"PRIx64, num);
 }
 
+void jsonw_luint(json_writer_t *self, unsigned long int num)
+{
+	jsonw_printf(self, "%lu", num);
+}
+
 void jsonw_lluint(json_writer_t *self, unsigned long long int num)
 {
 	jsonw_printf(self, "%llu", num);
@@ -300,6 +305,14 @@ void jsonw_hu_field(json_writer_t *self, const char *prop, unsigned short num)
 {
 	jsonw_name(self, prop);
 	jsonw_hu(self, num);
+}
+
+void jsonw_luint_field(json_writer_t *self,
+			const char *prop,
+			unsigned long int num)
+{
+	jsonw_name(self, prop);
+	jsonw_luint(self, num);
 }
 
 void jsonw_lluint_field(json_writer_t *self,

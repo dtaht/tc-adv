@@ -41,6 +41,7 @@ void jsonw_hu(json_writer_t *self, unsigned short number);
 void jsonw_int(json_writer_t *self, int number);
 void jsonw_s64(json_writer_t *self, int64_t number);
 void jsonw_null(json_writer_t *self);
+void jsonw_luint(json_writer_t *self, unsigned long int num);
 void jsonw_lluint(json_writer_t *self, unsigned long long int num);
 
 /* Useful Combinations of name and value */
@@ -54,6 +55,8 @@ void jsonw_hu_field(json_writer_t *self, const char *prop, unsigned short num);
 void jsonw_int_field(json_writer_t *self, const char *prop, int num);
 void jsonw_s64_field(json_writer_t *self, const char *prop, int64_t num);
 void jsonw_null_field(json_writer_t *self, const char *prop);
+void jsonw_luint_field(json_writer_t *self, const char *prop,
+			unsigned long int num);
 void jsonw_lluint_field(json_writer_t *self, const char *prop,
 			unsigned long long int num);
 void jsonw_float_field_fmt(json_writer_t *self, const char *prop,
