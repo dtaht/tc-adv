@@ -41,7 +41,9 @@ static struct cake_preset presets[] = {
 
 static struct cake_preset *find_preset(char *argv)
 {
-	for (int i = 0; i < ARRAY_SIZE(presets); i++)
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(presets); i++)
 		if (!strcmp(argv, presets[i].name))
 			return &presets[i];
 	return NULL;
