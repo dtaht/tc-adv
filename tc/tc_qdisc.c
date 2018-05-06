@@ -20,7 +20,6 @@
 #include <string.h>
 #include <math.h>
 #include <malloc.h>
-#include <inttypes.h>
 
 #include "utils.h"
 #include "tc_util.h"
@@ -279,7 +278,7 @@ int print_qdisc(const struct sockaddr_nl *who,
 	}
 
 	if (t->tcm_info != 1)
-		print_uint(PRINT_ANY, "refcnt", "refcnt %" PRIu64 " ", t->tcm_info);
+		print_uint(PRINT_ANY, "refcnt", "refcnt %u ", t->tcm_info);
 
 	if (tb[TCA_HW_OFFLOAD] &&
 	    (rta_getattr_u8(tb[TCA_HW_OFFLOAD])))
