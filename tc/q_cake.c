@@ -71,7 +71,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			  struct nlmsghdr *n, const char *dev)
 {
 	int unlimited = 0;
-	unsigned bandwidth = 0;
+	__u64 bandwidth = 0;
 	unsigned interval = 0;
 	unsigned target = 0;
 	unsigned diffserv = 0;
@@ -93,7 +93,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	while (argc > 0) {
 		if (strcmp(*argv, "bandwidth") == 0) {
 			NEXT_ARG();
-			if (get_rate(&bandwidth, *argv)) {
+			if (get_rate64(&bandwidth, *argv)) {
 				fprintf(stderr, "Illegal \"bandwidth\"\n");
 				return -1;
 			}
@@ -328,7 +328,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	tail = NLMSG_TAIL(n);
 	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
 	if (bandwidth || unlimited)
-		addattr_l(n, 1024, TCA_CAKE_BASE_RATE, &bandwidth, sizeof(bandwidth));
+		addattr_l(n, 1024, TCA_CAKE_BASE_RATE64, &bandwidth, sizeof(bandwidth));
 	if (diffserv)
 		addattr_l(n, 1024, TCA_CAKE_DIFFSERV_MODE, &diffserv, sizeof(diffserv));
 	if (atm != -1)
@@ -368,7 +368,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct rtattr *tb[TCA_CAKE_MAX + 1];
-	unsigned bandwidth = 0;
+	__u64 bandwidth = 0;
 	unsigned diffserv = 0;
 	unsigned flowmode = 0;
 	unsigned interval = 0;
@@ -391,9 +391,9 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	parse_rtattr_nested(tb, TCA_CAKE_MAX, opt);
 
-	if (tb[TCA_CAKE_BASE_RATE] &&
-	    RTA_PAYLOAD(tb[TCA_CAKE_BASE_RATE]) >= sizeof(__u32)) {
-		bandwidth = rta_getattr_u32(tb[TCA_CAKE_BASE_RATE]);
+	if (tb[TCA_CAKE_BASE_RATE64] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_BASE_RATE64]) >= sizeof(bandwidth)) {
+		bandwidth = rta_getattr_u64(tb[TCA_CAKE_BASE_RATE64]);
 		if(bandwidth) {
 			print_uint(PRINT_JSON, "bandwidth", NULL, bandwidth);
 			print_string(PRINT_FP, NULL, "bandwidth %s ", sprint_rate(bandwidth, b1));
@@ -566,7 +566,7 @@ static void cake_print_json_tin(struct rtattr **tstat)
 			rta_getattr_ ## type((struct rtattr *)tstat[TCA_CAKE_TIN_STATS_ ## attr]))
 
 	open_json_object(NULL);
-	PRINT_TSTAT_JSON(u32, "threshold_rate", THRESHOLD_RATE);
+	PRINT_TSTAT_JSON(u64, "threshold_rate", THRESHOLD_RATE64);
 	PRINT_TSTAT_JSON(u32, "target_us", TARGET_US);
 	PRINT_TSTAT_JSON(u32, "interval_us", INTERVAL_US);
 	PRINT_TSTAT_JSON(u32, "peak_delay_us", PEAK_DELAY_US);
@@ -601,6 +601,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		return 0;
 
 #define GET_STAT_U32(attr) rta_getattr_u32(st[TCA_CAKE_STATS_ ## attr])
+#define GET_STAT_U64(attr) rta_getattr_u64(st[TCA_CAKE_STATS_ ## attr])
 
 	parse_rtattr_nested(st, TCA_CAKE_STATS_MAX, xstats);
 
@@ -618,11 +619,11 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			GET_STAT_U32(MEMORY_LIMIT));
 	}
 
-	if (st[TCA_CAKE_STATS_CAPACITY_ESTIMATE]) {
+	if (st[TCA_CAKE_STATS_CAPACITY_ESTIMATE64]) {
 		print_string(PRINT_FP, NULL, " capacity estimate: %s\n",
-			sprint_rate(GET_STAT_U32(CAPACITY_ESTIMATE), b1));
+			sprint_rate(GET_STAT_U64(CAPACITY_ESTIMATE64), b1));
 		print_uint(PRINT_JSON, "capacity_estimate", NULL,
-			GET_STAT_U32(CAPACITY_ESTIMATE));
+			GET_STAT_U64(CAPACITY_ESTIMATE64));
 	}
 
 	if (st[TCA_CAKE_STATS_MIN_NETLEN] &&
@@ -649,6 +650,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			   GET_STAT_U32(AVG_NETOFF));
 
 #undef GET_STAT_U32
+#undef GET_STAT_U64
 
 	if (st[TCA_CAKE_STATS_TIN_STATS]) {
 		struct rtattr *tins[TC_CAKE_MAX_TINS + 1];
@@ -701,9 +703,9 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			}						\
 		} while (0)
 
-#define SPRINT_TSTAT(pfunc, name, attr) PRINT_TSTAT(		\
+#define SPRINT_TSTAT(pfunc, type, name, attr) PRINT_TSTAT(		\
 			name, attr, "s", sprint_ ## pfunc(		\
-				rta_getattr_u32(GET_TSTAT(i, attr)), b1))
+				rta_getattr_ ## type(GET_TSTAT(i, attr)), b1))
 
 #define PRINT_TSTAT_U32(name, attr)	PRINT_TSTAT(			\
 			name, attr, "u", rta_getattr_u32(GET_TSTAT(i, attr)))
@@ -711,12 +713,12 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 #define PRINT_TSTAT_U64(name, attr)	PRINT_TSTAT(			\
 			name, attr, "llu", rta_getattr_u64(GET_TSTAT(i, attr)))
 
-		SPRINT_TSTAT(rate, "  thresh  ", THRESHOLD_RATE);
-		SPRINT_TSTAT(time, "  target  ", TARGET_US);
-		SPRINT_TSTAT(time, "  interval", INTERVAL_US);
-		SPRINT_TSTAT(time, "  pk_delay", PEAK_DELAY_US);
-		SPRINT_TSTAT(time, "  av_delay", AVG_DELAY_US);
-		SPRINT_TSTAT(time, "  sp_delay", BASE_DELAY_US);
+		SPRINT_TSTAT(rate, u64, "  thresh  ", THRESHOLD_RATE64);
+		SPRINT_TSTAT(time, u32, "  target  ", TARGET_US);
+		SPRINT_TSTAT(time, u32, "  interval", INTERVAL_US);
+		SPRINT_TSTAT(time, u32, "  pk_delay", PEAK_DELAY_US);
+		SPRINT_TSTAT(time, u32, "  av_delay", AVG_DELAY_US);
+		SPRINT_TSTAT(time, u32, "  sp_delay", BASE_DELAY_US);
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
