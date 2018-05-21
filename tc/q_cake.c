@@ -568,7 +568,7 @@ static void cake_print_json_tin(struct rtattr **tstat)
 	open_json_object(NULL);
 	PRINT_TSTAT_JSON(u64, "threshold_rate", THRESHOLD_RATE64);
 	PRINT_TSTAT_JSON(u64, "sent_bytes", SENT_BYTES64);
-	PRINT_TSTAT_JSON(u64, "backlog_bytes", BACKLOG_BYTES64);
+	PRINT_TSTAT_JSON(u32, "backlog_bytes", BACKLOG_BYTES);
 	PRINT_TSTAT_JSON(u32, "target_us", TARGET_US);
 	PRINT_TSTAT_JSON(u32, "interval_us", INTERVAL_US);
 	PRINT_TSTAT_JSON(u32, "peak_delay_us", PEAK_DELAY_US);
@@ -720,7 +720,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		SPRINT_TSTAT(time, u32, "  pk_delay", PEAK_DELAY_US);
 		SPRINT_TSTAT(time, u32, "  av_delay", AVG_DELAY_US);
 		SPRINT_TSTAT(time, u32, "  sp_delay", BASE_DELAY_US);
-		SPRINT_TSTAT(size, u64, "  backlog ", BACKLOG_BYTES64);
+		SPRINT_TSTAT(size, u32, "  backlog ", BACKLOG_BYTES);
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
