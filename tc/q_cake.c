@@ -602,6 +602,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		return 0;
 
 #define GET_STAT_U32(attr) rta_getattr_u32(st[TCA_CAKE_STATS_ ## attr])
+#define GET_STAT_S32(attr) (*(__s32*)RTA_DATA(st[TCA_CAKE_STATS_ ## attr]))
 #define GET_STAT_U64(attr) rta_getattr_u64(st[TCA_CAKE_STATS_ ## attr])
 
 	parse_rtattr_nested(st, TCA_CAKE_STATS_MAX, xstats);
@@ -650,7 +651,49 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			   " average network hdr offset: %12u\n\n",
 			   GET_STAT_U32(AVG_NETOFF));
 
+	/* class stats */
+	if (st[TCA_CAKE_STATS_DEFICIT])
+		print_uint(PRINT_ANY, "deficit", "  deficit %u",
+			   GET_STAT_U32(DEFICIT));
+	if (st[TCA_CAKE_STATS_COBALT_COUNT])
+		print_uint(PRINT_ANY, "count", "  count %u",
+			   GET_STAT_U32(COBALT_COUNT));
+
+	if (st[TCA_CAKE_STATS_DROPPING] && GET_STAT_U32(DROPPING)) {
+		print_bool(PRINT_ANY, "dropping", " dropping", true);
+		if (st[TCA_CAKE_STATS_DROP_NEXT_US]) {
+			int drop_next = GET_STAT_S32(DROP_NEXT_US);
+			if (drop_next < 0) {
+				print_string(PRINT_FP, NULL, " drop_next -%s",
+					sprint_time(drop_next, b1));
+			} else {
+				print_uint(PRINT_JSON, "drop_next", NULL,
+					drop_next);
+				print_string(PRINT_FP, NULL, " drop_next %s",
+					sprint_time(drop_next, b1));
+			}
+		}
+	}
+
+	if (st[TCA_CAKE_STATS_P_DROP]) {
+		print_uint(PRINT_ANY, "blue_prob", " blue_prob %u",
+			   GET_STAT_U32(P_DROP));
+		if (st[TCA_CAKE_STATS_BLUE_TIMER_US]) {
+			int blue_timer = GET_STAT_S32(BLUE_TIMER_US);
+			if (blue_timer < 0) {
+				print_string(PRINT_FP, NULL, " blue_timer -%s",
+					sprint_time(blue_timer, b1));
+			} else {
+				print_uint(PRINT_JSON, "blue_timer", NULL,
+					blue_timer);
+				print_string(PRINT_FP, NULL, " blue_timer %s",
+					sprint_time(blue_timer, b1));
+			}
+		}
+	}
+
 #undef GET_STAT_U32
+#undef GET_STAT_S32
 #undef GET_STAT_U64
 
 	if (st[TCA_CAKE_STATS_TIN_STATS]) {
