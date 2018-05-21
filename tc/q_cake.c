@@ -567,13 +567,14 @@ static void cake_print_json_tin(struct rtattr **tstat)
 
 	open_json_object(NULL);
 	PRINT_TSTAT_JSON(u64, "threshold_rate", THRESHOLD_RATE64);
+	PRINT_TSTAT_JSON(u64, "sent_bytes", SENT_BYTES64);
+	PRINT_TSTAT_JSON(u64, "backlog_bytes", BACKLOG_BYTES64);
 	PRINT_TSTAT_JSON(u32, "target_us", TARGET_US);
 	PRINT_TSTAT_JSON(u32, "interval_us", INTERVAL_US);
 	PRINT_TSTAT_JSON(u32, "peak_delay_us", PEAK_DELAY_US);
 	PRINT_TSTAT_JSON(u32, "avg_delay_us", AVG_DELAY_US);
 	PRINT_TSTAT_JSON(u32, "base_delay_us", BASE_DELAY_US);
 	PRINT_TSTAT_JSON(u32, "sent_packets", SENT_PACKETS);
-	PRINT_TSTAT_JSON(u64, "sent_bytes", SENT_BYTES64);
 	PRINT_TSTAT_JSON(u32, "way_indirect_hits", WAY_INDIRECT_HITS);
 	PRINT_TSTAT_JSON(u32, "way_misses", WAY_MISSES);
 	PRINT_TSTAT_JSON(u32, "way_collisions", WAY_COLLISIONS);
@@ -722,6 +723,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
+		PRINT_TSTAT_U64("  backlog ", BACKLOG_BYTES64);
 
 		PRINT_TSTAT_U32("  way_inds", WAY_INDIRECT_HITS);
 		PRINT_TSTAT_U32("  way_miss", WAY_MISSES);
