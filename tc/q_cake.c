@@ -720,10 +720,10 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		SPRINT_TSTAT(time, u32, "  pk_delay", PEAK_DELAY_US);
 		SPRINT_TSTAT(time, u32, "  av_delay", AVG_DELAY_US);
 		SPRINT_TSTAT(time, u32, "  sp_delay", BASE_DELAY_US);
+		SPRINT_TSTAT(size, u64, "  backlog ", BACKLOG_BYTES64);
 
 		PRINT_TSTAT_U32("  pkts    ", SENT_PACKETS);
 		PRINT_TSTAT_U64("  bytes   ", SENT_BYTES64);
-		SPRINT_TSTAT(size, u64, "  backlog ", BACKLOG_BYTES64);
 
 		PRINT_TSTAT_U32("  way_inds", WAY_INDIRECT_HITS);
 		PRINT_TSTAT_U32("  way_miss", WAY_MISSES);
