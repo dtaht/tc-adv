@@ -72,10 +72,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 {
 	int unlimited = 0;
 	__u64 bandwidth = 0;
-	unsigned interval = 0;
-	unsigned target = 0;
-	unsigned diffserv = 0;
-	unsigned memlimit = 0;
+	unsigned int interval = 0;
+	unsigned int target = 0;
+	unsigned int diffserv = 0;
+	unsigned int memlimit = 0;
 	int  overhead = 0;
 	bool overhead_set = false;
 	bool overhead_override = false;
@@ -113,7 +113,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			target = interval / 20;
-			if(!target)
+			if (!target)
 				target = 1;
 		} else if ((preset = find_preset(*argv))) {
 			if (preset_set)
@@ -277,20 +277,22 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			mpu = 64;
 
 		} else if (strcmp(*argv, "overhead") == 0) {
-			char* p = NULL;
+			char *p = NULL;
+
 			NEXT_ARG();
 			overhead = strtol(*argv, &p, 10);
-			if(!p || *p || !*argv || overhead < -64 || overhead > 256) {
+			if (!p || *p || !*argv || overhead < -64 || overhead > 256) {
 				fprintf(stderr, "Illegal \"overhead\", valid range is -64 to 256\\n");
 				return -1;
 			}
 			overhead_set = true;
 
 		} else if (strcmp(*argv, "mpu") == 0) {
-			char* p = NULL;
+			char *p = NULL;
+
 			NEXT_ARG();
 			mpu = strtol(*argv, &p, 10);
-			if(!p || *p || !*argv || mpu < 0 || mpu > 256) {
+			if (!p || *p || !*argv || mpu < 0 || mpu > 256) {
 				fprintf(stderr, "Illegal \"mpu\", valid range is 0 to 256\\n");
 				return -1;
 			}
@@ -309,7 +311,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
-			if(get_size(&memlimit, *argv)) {
+			if (get_size(&memlimit, *argv)) {
 				fprintf(stderr, "Illegal value for \"memlimit\": \"%s\"\n", *argv);
 				return -1;
 			}
@@ -338,7 +340,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (overhead_set)
 		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
 	if (overhead_override) {
-		unsigned zero = 0;
+		unsigned int zero = 0;
+
 		addattr_l(n, 1024, TCA_CAKE_RAW, &zero, sizeof(zero));
 	}
 	if (mpu > 0)
@@ -369,10 +372,10 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct rtattr *tb[TCA_CAKE_MAX + 1];
 	__u64 bandwidth = 0;
-	unsigned diffserv = 0;
-	unsigned flowmode = 0;
-	unsigned interval = 0;
-	unsigned memlimit = 0;
+	unsigned int diffserv = 0;
+	unsigned int flowmode = 0;
+	unsigned int interval = 0;
+	unsigned int memlimit = 0;
 	int overhead = 0;
 	int raw = 0;
 	int mpu = 0;
@@ -383,6 +386,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int ingress = 0;
 	int ack_filter = 0;
 	int split_gso = 0;
+
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
 
@@ -394,7 +398,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_BASE_RATE64] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_BASE_RATE64]) >= sizeof(bandwidth)) {
 		bandwidth = rta_getattr_u64(tb[TCA_CAKE_BASE_RATE64]);
-		if(bandwidth) {
+		if (bandwidth) {
 			print_uint(PRINT_JSON, "bandwidth", NULL, bandwidth);
 			print_string(PRINT_FP, NULL, "bandwidth %s ", sprint_rate(bandwidth, b1));
 		} else
@@ -403,15 +407,15 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_AUTORATE] &&
 		RTA_PAYLOAD(tb[TCA_CAKE_AUTORATE]) >= sizeof(__u32)) {
 		autorate = rta_getattr_u32(tb[TCA_CAKE_AUTORATE]);
-		if(autorate == 1)
+		if (autorate == 1)
 			print_string(PRINT_ANY, "autorate", "autorate_%s ", "ingress");
-		else if(autorate)
+		else if (autorate)
 			print_string(PRINT_ANY, "autorate", "(?autorate?) ", "unknown");
 	}
 	if (tb[TCA_CAKE_DIFFSERV_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
 		diffserv = rta_getattr_u32(tb[TCA_CAKE_DIFFSERV_MODE]);
-		switch(diffserv) {
+		switch (diffserv) {
 		case CAKE_DIFFSERV_DIFFSERV3:
 			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv3");
 			break;
@@ -435,7 +439,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (tb[TCA_CAKE_FLOW_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_FLOW_MODE]) >= sizeof(__u32)) {
 		flowmode = rta_getattr_u32(tb[TCA_CAKE_FLOW_MODE]);
-		switch(flowmode) {
+		switch (flowmode) {
 		case CAKE_FLOW_NONE:
 			print_string(PRINT_ANY, "flowmode", "%s ", "flowblind");
 			break;
@@ -472,7 +476,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    nat = rta_getattr_u32(tb[TCA_CAKE_NAT]);
 	}
 
-	if(nat)
+	if (nat)
 		print_string(PRINT_FP, NULL, "nat ", NULL);
 	print_bool(PRINT_JSON, "nat", NULL, nat);
 
@@ -602,7 +606,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		return 0;
 
 #define GET_STAT_U32(attr) rta_getattr_u32(st[TCA_CAKE_STATS_ ## attr])
-#define GET_STAT_S32(attr) (*(__s32*)RTA_DATA(st[TCA_CAKE_STATS_ ## attr]))
+#define GET_STAT_S32(attr) (*(__s32 *)RTA_DATA(st[TCA_CAKE_STATS_ ## attr]))
 #define GET_STAT_U64(attr) rta_getattr_u64(st[TCA_CAKE_STATS_ ## attr])
 
 	parse_rtattr_nested(st, TCA_CAKE_STATS_MAX, xstats);
@@ -663,6 +667,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		print_bool(PRINT_ANY, "dropping", " dropping", true);
 		if (st[TCA_CAKE_STATS_DROP_NEXT_US]) {
 			int drop_next = GET_STAT_S32(DROP_NEXT_US);
+
 			if (drop_next < 0) {
 				print_string(PRINT_FP, NULL, " drop_next -%s",
 					sprint_time(drop_next, b1));
@@ -680,6 +685,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			   GET_STAT_U32(P_DROP));
 		if (st[TCA_CAKE_STATS_BLUE_TIMER_US]) {
 			int blue_timer = GET_STAT_S32(BLUE_TIMER_US);
+
 			if (blue_timer < 0) {
 				print_string(PRINT_FP, NULL, " blue_timer -%s",
 					sprint_time(blue_timer, b1));
@@ -721,7 +727,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		}
 
 
-		switch(num_tins) {
+		switch (num_tins) {
 		case 3:
 			fprintf(f, "                   Bulk  Best Effort        Voice\n");
 			break;
@@ -732,7 +738,7 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 
 		default:
 			fprintf(f, "          ");
-			for(i=0; i < num_tins; i++)
+			for (i = 0; i < num_tins; i++)
 				fprintf(f, "        Tin %u", i);
 			fprintf(f, "\n");
 		};
