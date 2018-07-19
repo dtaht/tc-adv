@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: (GPL-2.0 OR BSD-3-Clause) */
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+
 /*
  * Common Applications Kept Enhanced  --  CAKE
  *
@@ -70,25 +71,25 @@ static void explain(void)
 static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			  struct nlmsghdr *n, const char *dev)
 {
-	int unlimited = 0;
-	__u64 bandwidth = 0;
+	struct cake_preset *preset, *preset_set = NULL;
+	bool overhead_override = false;
+	bool overhead_set = false;
 	unsigned int interval = 0;
-	unsigned int target = 0;
 	unsigned int diffserv = 0;
 	unsigned int memlimit = 0;
-	int  overhead = 0;
-	bool overhead_set = false;
-	bool overhead_override = false;
-	int mpu = 0;
-	int flowmode = -1;
-	int nat = -1;
-	int atm = -1;
-	int autorate = -1;
-	int wash = -1;
-	int ingress = -1;
+	unsigned int target = 0;
+	__u64 bandwidth = 0;
 	int ack_filter = -1;
 	struct rtattr *tail;
-	struct cake_preset *preset, *preset_set = NULL;
+	int unlimited = 0;
+	int flowmode = -1;
+	int autorate = -1;
+	int ingress = -1;
+	int overhead = 0;
+	int wash = -1;
+	int nat = -1;
+	int atm = -1;
+	int mpu = 0;
 
 	while (argc > 0) {
 		if (strcmp(*argv, "bandwidth") == 0) {
@@ -105,7 +106,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			autorate = 0;
 		} else if (strcmp(*argv, "autorate_ingress") == 0) {
 			autorate = 1;
-
 		} else if (strcmp(*argv, "rtt") == 0) {
 			NEXT_ARG();
 			if (get_time(&interval, *argv)) {
@@ -121,7 +121,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			preset_set = preset;
 			target = preset->target;
 			interval = preset->interval;
-
 		} else if (strcmp(*argv, "besteffort") == 0) {
 			diffserv = CAKE_DIFFSERV_BESTEFFORT;
 		} else if (strcmp(*argv, "precedence") == 0) {
@@ -134,12 +133,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			diffserv = CAKE_DIFFSERV_DIFFSERV4;
 		} else if (strcmp(*argv, "diffserv3") == 0) {
 			diffserv = CAKE_DIFFSERV_DIFFSERV3;
-
 		} else if (strcmp(*argv, "nowash") == 0) {
 			wash = 0;
 		} else if (strcmp(*argv, "wash") == 0) {
 			wash = 1;
-
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = CAKE_FLOW_NONE;
 		} else if (strcmp(*argv, "srchost") == 0) {
@@ -156,19 +153,16 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			flowmode = CAKE_FLOW_DUAL_DST;
 		} else if (strcmp(*argv, "triple-isolate") == 0) {
 			flowmode = CAKE_FLOW_TRIPLE;
-
 		} else if (strcmp(*argv, "nat") == 0) {
 			nat = 1;
 		} else if (strcmp(*argv, "nonat") == 0) {
 			nat = 0;
-
 		} else if (strcmp(*argv, "ptm") == 0) {
 			atm = CAKE_ATM_PTM;
 		} else if (strcmp(*argv, "atm") == 0) {
 			atm = CAKE_ATM_ATM;
 		} else if (strcmp(*argv, "noatm") == 0) {
 			atm = CAKE_ATM_NONE;
-
 		} else if (strcmp(*argv, "raw") == 0) {
 			atm = CAKE_ATM_NONE;
 			overhead = 0;
@@ -238,7 +232,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			atm = CAKE_ATM_PTM;
 			overhead += 22;
 			overhead_set = true;
-
 		} else if (strcmp(*argv, "via-ethernet") == 0) {
 			/*
 			 * We used to use this flag to manually compensate for
@@ -252,10 +245,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			 * stats output when the automatic compensation is
 			 * active.
 			 */
-
 		} else if (strcmp(*argv, "ethernet") == 0) {
 			/* ethernet pre-amble & interframe gap & FCS
-			 * you may need to add vlan tag */
+			 * you may need to add vlan tag
+			 */
 			overhead += 38;
 			overhead_set = true;
 			mpu = 84;
@@ -275,14 +268,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			overhead += 18;
 			overhead_set = true;
 			mpu = 64;
-
 		} else if (strcmp(*argv, "overhead") == 0) {
 			char *p = NULL;
 
 			NEXT_ARG();
 			overhead = strtol(*argv, &p, 10);
-			if (!p || *p || !*argv || overhead < -64 || overhead > 256) {
-				fprintf(stderr, "Illegal \"overhead\", valid range is -64 to 256\\n");
+			if (!p || *p || !*argv ||
+			    overhead < -64 || overhead > 256) {
+				fprintf(stderr,
+					"Illegal \"overhead\", valid range is -64 to 256\\n");
 				return -1;
 			}
 			overhead_set = true;
@@ -293,29 +287,27 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			NEXT_ARG();
 			mpu = strtol(*argv, &p, 10);
 			if (!p || *p || !*argv || mpu < 0 || mpu > 256) {
-				fprintf(stderr, "Illegal \"mpu\", valid range is 0 to 256\\n");
+				fprintf(stderr,
+					"Illegal \"mpu\", valid range is 0 to 256\\n");
 				return -1;
 			}
-
 		} else if (strcmp(*argv, "ingress") == 0) {
 			ingress = 1;
 		} else if (strcmp(*argv, "egress") == 0) {
 			ingress = 0;
-
 		} else if (strcmp(*argv, "no-ack-filter") == 0) {
 			ack_filter = CAKE_ACK_NONE;
 		} else if (strcmp(*argv, "ack-filter") == 0) {
 			ack_filter = CAKE_ACK_FILTER;
 		} else if (strcmp(*argv, "ack-filter-aggressive") == 0) {
 			ack_filter = CAKE_ACK_AGGRESSIVE;
-
 		} else if (strcmp(*argv, "memlimit") == 0) {
 			NEXT_ARG();
 			if (get_size(&memlimit, *argv)) {
-				fprintf(stderr, "Illegal value for \"memlimit\": \"%s\"\n", *argv);
+				fprintf(stderr,
+					"Illegal value for \"memlimit\": \"%s\"\n", *argv);
 				return -1;
 			}
-
 		} else if (strcmp(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -330,15 +322,19 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	tail = NLMSG_TAIL(n);
 	addattr_l(n, 1024, TCA_OPTIONS, NULL, 0);
 	if (bandwidth || unlimited)
-		addattr_l(n, 1024, TCA_CAKE_BASE_RATE64, &bandwidth, sizeof(bandwidth));
+		addattr_l(n, 1024, TCA_CAKE_BASE_RATE64, &bandwidth,
+			  sizeof(bandwidth));
 	if (diffserv)
-		addattr_l(n, 1024, TCA_CAKE_DIFFSERV_MODE, &diffserv, sizeof(diffserv));
+		addattr_l(n, 1024, TCA_CAKE_DIFFSERV_MODE, &diffserv,
+			  sizeof(diffserv));
 	if (atm != -1)
 		addattr_l(n, 1024, TCA_CAKE_ATM, &atm, sizeof(atm));
 	if (flowmode != -1)
-		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode, sizeof(flowmode));
+		addattr_l(n, 1024, TCA_CAKE_FLOW_MODE, &flowmode,
+			  sizeof(flowmode));
 	if (overhead_set)
-		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead, sizeof(overhead));
+		addattr_l(n, 1024, TCA_CAKE_OVERHEAD, &overhead,
+			  sizeof(overhead));
 	if (overhead_override) {
 		unsigned int zero = 0;
 
@@ -351,9 +347,11 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (target)
 		addattr_l(n, 1024, TCA_CAKE_TARGET, &target, sizeof(target));
 	if (autorate != -1)
-		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate, sizeof(autorate));
+		addattr_l(n, 1024, TCA_CAKE_AUTORATE, &autorate,
+			  sizeof(autorate));
 	if (memlimit)
-		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit, sizeof(memlimit));
+		addattr_l(n, 1024, TCA_CAKE_MEMORY, &memlimit,
+			  sizeof(memlimit));
 	if (nat != -1)
 		addattr_l(n, 1024, TCA_CAKE_NAT, &nat, sizeof(nat));
 	if (wash != -1)
@@ -361,31 +359,31 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (ingress != -1)
 		addattr_l(n, 1024, TCA_CAKE_INGRESS, &ingress, sizeof(ingress));
 	if (ack_filter != -1)
-		addattr_l(n, 1024, TCA_CAKE_ACK_FILTER, &ack_filter, sizeof(ack_filter));
+		addattr_l(n, 1024, TCA_CAKE_ACK_FILTER, &ack_filter,
+			  sizeof(ack_filter));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
 }
 
-
 static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct rtattr *tb[TCA_CAKE_MAX + 1];
-	__u64 bandwidth = 0;
 	unsigned int diffserv = 0;
 	unsigned int flowmode = 0;
 	unsigned int interval = 0;
 	unsigned int memlimit = 0;
+	__u64 bandwidth = 0;
+	int ack_filter = 0;
+	int split_gso = 0;
 	int overhead = 0;
+	int autorate = 0;
+	int ingress = 0;
+	int wash = 0;
 	int raw = 0;
 	int mpu = 0;
 	int atm = 0;
 	int nat = 0;
-	int autorate = 0;
-	int wash = 0;
-	int ingress = 0;
-	int ack_filter = 0;
-	int split_gso = 0;
 
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
@@ -400,17 +398,21 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		bandwidth = rta_getattr_u64(tb[TCA_CAKE_BASE_RATE64]);
 		if (bandwidth) {
 			print_uint(PRINT_JSON, "bandwidth", NULL, bandwidth);
-			print_string(PRINT_FP, NULL, "bandwidth %s ", sprint_rate(bandwidth, b1));
+			print_string(PRINT_FP, NULL, "bandwidth %s ",
+				     sprint_rate(bandwidth, b1));
 		} else
-			print_string(PRINT_ANY, "bandwidth", "bandwidth %s ", "unlimited");
+			print_string(PRINT_ANY, "bandwidth", "bandwidth %s ",
+				     "unlimited");
 	}
 	if (tb[TCA_CAKE_AUTORATE] &&
 		RTA_PAYLOAD(tb[TCA_CAKE_AUTORATE]) >= sizeof(__u32)) {
 		autorate = rta_getattr_u32(tb[TCA_CAKE_AUTORATE]);
 		if (autorate == 1)
-			print_string(PRINT_ANY, "autorate", "autorate_%s ", "ingress");
+			print_string(PRINT_ANY, "autorate", "autorate_%s ",
+				     "ingress");
 		else if (autorate)
-			print_string(PRINT_ANY, "autorate", "(?autorate?) ", "unknown");
+			print_string(PRINT_ANY, "autorate", "(?autorate?) ",
+				     "unknown");
 	}
 	if (tb[TCA_CAKE_DIFFSERV_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
@@ -426,13 +428,16 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv8");
 			break;
 		case CAKE_DIFFSERV_BESTEFFORT:
-			print_string(PRINT_ANY, "diffserv", "%s ", "besteffort");
+			print_string(PRINT_ANY, "diffserv", "%s ",
+				     "besteffort");
 			break;
 		case CAKE_DIFFSERV_PRECEDENCE:
-			print_string(PRINT_ANY, "diffserv", "%s ", "precedence");
+			print_string(PRINT_ANY, "diffserv", "%s ",
+				     "precedence");
 			break;
 		default:
-			print_string(PRINT_ANY, "diffserv", "(?diffserv?) ", "unknown");
+			print_string(PRINT_ANY, "diffserv", "(?diffserv?) ",
+				     "unknown");
 			break;
 		};
 	}
@@ -456,24 +461,27 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 			print_string(PRINT_ANY, "flowmode", "%s ", "flows");
 			break;
 		case CAKE_FLOW_DUAL_SRC:
-			print_string(PRINT_ANY, "flowmode", "%s ", "dual-srchost");
+			print_string(PRINT_ANY, "flowmode", "%s ",
+				     "dual-srchost");
 			break;
 		case CAKE_FLOW_DUAL_DST:
-			print_string(PRINT_ANY, "flowmode", "%s ", "dual-dsthost");
+			print_string(PRINT_ANY, "flowmode", "%s ",
+				     "dual-dsthost");
 			break;
 		case CAKE_FLOW_TRIPLE:
-			print_string(PRINT_ANY, "flowmode", "%s ", "triple-isolate");
+			print_string(PRINT_ANY, "flowmode", "%s ",
+				     "triple-isolate");
 			break;
 		default:
-			print_string(PRINT_ANY, "flowmode", "(?flowmode?) ", "unknown");
+			print_string(PRINT_ANY, "flowmode", "(?flowmode?) ",
+				     "unknown");
 			break;
 		};
-
 	}
 
 	if (tb[TCA_CAKE_NAT] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_NAT]) >= sizeof(__u32)) {
-	    nat = rta_getattr_u32(tb[TCA_CAKE_NAT]);
+		nat = rta_getattr_u32(tb[TCA_CAKE_NAT]);
 	}
 
 	if (nat)
@@ -525,7 +533,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	print_bool(PRINT_JSON, "ingress", NULL, ingress);
 
 	if (ack_filter == CAKE_ACK_AGGRESSIVE)
-		print_string(PRINT_ANY, "ack-filter", "ack-filter-%s ", "aggressive");
+		print_string(PRINT_ANY, "ack-filter", "ack-filter-%s ",
+			     "aggressive");
 	else if (ack_filter == CAKE_ACK_FILTER)
 		print_string(PRINT_ANY, "ack-filter", "ack-filter ", "enabled");
 	else
@@ -536,7 +545,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	print_bool(PRINT_JSON, "split_gso", NULL, split_gso);
 
 	if (interval)
-		print_string(PRINT_FP, NULL, "rtt %s ", sprint_time(interval, b2));
+		print_string(PRINT_FP, NULL, "rtt %s ",
+			     sprint_time(interval, b2));
 	print_uint(PRINT_JSON, "rtt", NULL, interval);
 
 	if (raw)
@@ -557,7 +567,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (memlimit) {
 		print_uint(PRINT_JSON, "memlimit", NULL, memlimit);
-		print_string(PRINT_FP, NULL, "memlimit %s", sprint_size(memlimit, b1));
+		print_string(PRINT_FP, NULL, "memlimit %s",
+			     sprint_size(memlimit, b1));
 	}
 
 	return 0;
@@ -567,7 +578,8 @@ static void cake_print_json_tin(struct rtattr **tstat)
 {
 #define PRINT_TSTAT_JSON(type, name, attr) if (tstat[TCA_CAKE_TIN_STATS_ ## attr]) \
 		print_u64(PRINT_JSON, name, NULL,			\
-			rta_getattr_ ## type((struct rtattr *)tstat[TCA_CAKE_TIN_STATS_ ## attr]))
+			rta_getattr_ ## type((struct rtattr *)		\
+					     tstat[TCA_CAKE_TIN_STATS_ ## attr]))
 
 	open_json_object(NULL);
 	PRINT_TSTAT_JSON(u64, "threshold_rate", THRESHOLD_RATE64);
@@ -598,8 +610,8 @@ static void cake_print_json_tin(struct rtattr **tstat)
 static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 			     struct rtattr *xstats)
 {
-	SPRINT_BUF(b1);
 	struct rtattr *st[TCA_CAKE_STATS_MAX + 1];
+	SPRINT_BUF(b1);
 	int i;
 
 	if (xstats == NULL)
@@ -703,14 +715,16 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 #undef GET_STAT_U64
 
 	if (st[TCA_CAKE_STATS_TIN_STATS]) {
-		struct rtattr *tins[TC_CAKE_MAX_TINS + 1];
 		struct rtattr *tstat[TC_CAKE_MAX_TINS][TCA_CAKE_TIN_STATS_MAX + 1];
+		struct rtattr *tins[TC_CAKE_MAX_TINS + 1];
 		int num_tins = 0;
 
-		parse_rtattr_nested(tins, TC_CAKE_MAX_TINS, st[TCA_CAKE_STATS_TIN_STATS]);
+		parse_rtattr_nested(tins, TC_CAKE_MAX_TINS,
+				    st[TCA_CAKE_STATS_TIN_STATS]);
 
 		for (i = 1; i <= TC_CAKE_MAX_TINS && tins[i]; i++) {
-			parse_rtattr_nested(tstat[i-1], TCA_CAKE_TIN_STATS_MAX, tins[i]);
+			parse_rtattr_nested(tstat[i-1], TCA_CAKE_TIN_STATS_MAX,
+					    tins[i]);
 			num_tins++;
 		}
 
