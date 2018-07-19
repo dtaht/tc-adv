@@ -39,6 +39,24 @@ static struct cake_preset presets[] = {
 	{"interplanetary",	50000000,	1000000000},
 };
 
+static const char * diffserv_names[CAKE_DIFFSERV_MAX] = {
+	[CAKE_DIFFSERV_DIFFSERV3] = "diffserv3",
+	[CAKE_DIFFSERV_DIFFSERV4] = "diffserv4",
+	[CAKE_DIFFSERV_DIFFSERV8] = "diffserv8",
+	[CAKE_DIFFSERV_BESTEFFORT] = "besteffort",
+	[CAKE_DIFFSERV_PRECEDENCE] = "precedence",
+};
+
+static const char * flowmode_names[CAKE_FLOW_MAX] = {
+	[CAKE_FLOW_NONE] = "flowblind",
+	[CAKE_FLOW_SRC_IP] = "srchost",
+	[CAKE_FLOW_DST_IP] = "dsthost",
+	[CAKE_FLOW_HOSTS] = "hosts",
+	[CAKE_FLOW_FLOWS] = "flows",
+	[CAKE_FLOW_DUAL_SRC] = "dual-srchost",
+	[CAKE_FLOW_DUAL_DST] = "dual-dsthost",
+	[CAKE_FLOW_TRIPLE] = "triple-isolate",
+};
 
 static struct cake_preset *find_preset(char *argv)
 {
@@ -366,11 +384,20 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	return 0;
 }
 
+static void cake_print_mode(unsigned int value, unsigned int max,
+			    const char *key, const char **table)
+{
+	if (value < max && table[value]) {
+		print_string(PRINT_ANY, key, "%s ", table[value]);
+	} else {
+		print_string(PRINT_JSON, key, NULL, "unknown");
+		print_string(PRINT_FP, NULL, "(?%s?)", key);
+	}
+}
+
 static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct rtattr *tb[TCA_CAKE_MAX + 1];
-	unsigned int diffserv = 0;
-	unsigned int flowmode = 0;
 	unsigned int interval = 0;
 	unsigned int memlimit = 0;
 	__u64 bandwidth = 0;
@@ -416,67 +443,13 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	}
 	if (tb[TCA_CAKE_DIFFSERV_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_DIFFSERV_MODE]) >= sizeof(__u32)) {
-		diffserv = rta_getattr_u32(tb[TCA_CAKE_DIFFSERV_MODE]);
-		switch (diffserv) {
-		case CAKE_DIFFSERV_DIFFSERV3:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv3");
-			break;
-		case CAKE_DIFFSERV_DIFFSERV4:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv4");
-			break;
-		case CAKE_DIFFSERV_DIFFSERV8:
-			print_string(PRINT_ANY, "diffserv", "%s ", "diffserv8");
-			break;
-		case CAKE_DIFFSERV_BESTEFFORT:
-			print_string(PRINT_ANY, "diffserv", "%s ",
-				     "besteffort");
-			break;
-		case CAKE_DIFFSERV_PRECEDENCE:
-			print_string(PRINT_ANY, "diffserv", "%s ",
-				     "precedence");
-			break;
-		default:
-			print_string(PRINT_ANY, "diffserv", "(?diffserv?) ",
-				     "unknown");
-			break;
-		};
+		cake_print_mode(rta_getattr_u32(tb[TCA_CAKE_DIFFSERV_MODE]),
+				CAKE_DIFFSERV_MAX, "diffserv", diffserv_names);
 	}
 	if (tb[TCA_CAKE_FLOW_MODE] &&
 	    RTA_PAYLOAD(tb[TCA_CAKE_FLOW_MODE]) >= sizeof(__u32)) {
-		flowmode = rta_getattr_u32(tb[TCA_CAKE_FLOW_MODE]);
-		switch (flowmode) {
-		case CAKE_FLOW_NONE:
-			print_string(PRINT_ANY, "flowmode", "%s ", "flowblind");
-			break;
-		case CAKE_FLOW_SRC_IP:
-			print_string(PRINT_ANY, "flowmode", "%s ", "srchost");
-			break;
-		case CAKE_FLOW_DST_IP:
-			print_string(PRINT_ANY, "flowmode", "%s ", "dsthost");
-			break;
-		case CAKE_FLOW_HOSTS:
-			print_string(PRINT_ANY, "flowmode", "%s ", "hosts");
-			break;
-		case CAKE_FLOW_FLOWS:
-			print_string(PRINT_ANY, "flowmode", "%s ", "flows");
-			break;
-		case CAKE_FLOW_DUAL_SRC:
-			print_string(PRINT_ANY, "flowmode", "%s ",
-				     "dual-srchost");
-			break;
-		case CAKE_FLOW_DUAL_DST:
-			print_string(PRINT_ANY, "flowmode", "%s ",
-				     "dual-dsthost");
-			break;
-		case CAKE_FLOW_TRIPLE:
-			print_string(PRINT_ANY, "flowmode", "%s ",
-				     "triple-isolate");
-			break;
-		default:
-			print_string(PRINT_ANY, "flowmode", "(?flowmode?) ",
-				     "unknown");
-			break;
-		};
+		cake_print_mode(rta_getattr_u32(tb[TCA_CAKE_FLOW_MODE]),
+				CAKE_FLOW_MAX, "flowmode", flowmode_names);
 	}
 
 	if (tb[TCA_CAKE_NAT] &&
