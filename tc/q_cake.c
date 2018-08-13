@@ -100,6 +100,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	__u64 bandwidth = 0;
 	int ack_filter = -1;
 	struct rtattr *tail;
+	int split_gso = -1;
 	int unlimited = 0;
 	int flowmode = -1;
 	int autorate = -1;
@@ -109,7 +110,6 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int nat = -1;
 	int atm = -1;
 	int mpu = 0;
-	int split_gso = -1;
 
 	while (argc > 0) {
 		if (strcmp(*argv, "bandwidth") == 0) {
