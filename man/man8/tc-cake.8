@@ -73,6 +73,12 @@ TIME |
 ]
 .br
 [
+.BR fwmark
+|
+.BR nofwmark*
+]
+.br
+[
 .BR split-gso*
 |
 .BR no-split-gso
@@ -623,6 +629,19 @@ override mechanism; if a host ID is assigned, it will be used as both source and
 destination host.
 
 
+.SH OVERRIDING CLASSIFICATION WITH NETFILTER CONNMARKS
+
+In addition to TC FILTER tin classification, firewall marks may also optionally
+be used.  The priority order (highest to lowest) for tin selection is TC filter,
+firewall mark and then DSCP.
+.PP
+.B fwmark
+
+.br
+	Enables CONNMARK based tin selection. Valid CONNMARKS range from 1 to the
+maximum number of tins i.e. 3 tins for diffserv3, 4 tins for diffserv4.
+Values outside the valid range are ignored and CAKE will fall back to using
+DSCP for tin selection.
 
 .SH EXAMPLES
 # tc qdisc delete root dev eth0

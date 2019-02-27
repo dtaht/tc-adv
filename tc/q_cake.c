@@ -79,6 +79,8 @@ static void explain(void)
 "                  dual-srchost | dual-dsthost | triple-isolate* ]\n"
 "                [ nat | nonat* ]\n"
 "                [ wash | nowash* ]\n"
+"                [ icing | noicing* ]\n"
+"                [ fwmark | nofwmark* ]\n"
 "                [ split-gso* | no-split-gso ]\n"
 "                [ ack-filter | ack-filter-aggressive | no-ack-filter* ]\n"
 "                [ memlimit LIMIT ]\n"
@@ -106,6 +108,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int autorate = -1;
 	int ingress = -1;
 	int overhead = 0;
+	int fwmark = -1;
+	int icing = -1;
 	int wash = -1;
 	int nat = -1;
 	int atm = -1;
@@ -161,6 +165,14 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			split_gso = 1;
 		} else if (strcmp(*argv, "no-split-gso") == 0) {
 			split_gso = 0;
+		} else if (strcmp(*argv, "fwmark") == 0) {
+			fwmark = 1;
+		} else if (strcmp(*argv, "nofwmark") == 0) {
+			fwmark = 0;
+		} else if (strcmp(*argv, "icing") == 0) {
+			icing = 1;
+		} else if (strcmp(*argv, "noicing") == 0) {
+			icing = 0;
 		} else if (strcmp(*argv, "flowblind") == 0) {
 			flowmode = CAKE_FLOW_NONE;
 		} else if (strcmp(*argv, "srchost") == 0) {
@@ -383,6 +395,12 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (split_gso != -1)
 		addattr_l(n, 1024, TCA_CAKE_SPLIT_GSO, &split_gso,
 			  sizeof(split_gso));
+	if (fwmark != -1)
+		addattr_l(n, 1024, TCA_CAKE_FWMARK, &fwmark,
+			  sizeof(fwmark));
+	if (icing != -1)
+		addattr_l(n, 1024, TCA_CAKE_ICING, &icing,
+			  sizeof(icing));
 	if (ingress != -1)
 		addattr_l(n, 1024, TCA_CAKE_INGRESS, &ingress, sizeof(ingress));
 	if (ack_filter != -1)
@@ -415,6 +433,8 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int overhead = 0;
 	int autorate = 0;
 	int ingress = 0;
+	int fwmark = 0;
+	int icing = 0;
 	int wash = 0;
 	int raw = 0;
 	int mpu = 0;
@@ -500,6 +520,14 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	    RTA_PAYLOAD(tb[TCA_CAKE_SPLIT_GSO]) >= sizeof(__u32)) {
 		split_gso = rta_getattr_u32(tb[TCA_CAKE_SPLIT_GSO]);
 	}
+	if (tb[TCA_CAKE_FWMARK] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_FWMARK]) >= sizeof(__u32)) {
+		fwmark = rta_getattr_u32(tb[TCA_CAKE_FWMARK]);
+	}
+	if (tb[TCA_CAKE_ICING] &&
+	    RTA_PAYLOAD(tb[TCA_CAKE_ICING]) >= sizeof(__u32)) {
+		icing = rta_getattr_u32(tb[TCA_CAKE_ICING]);
+	}
 	if (tb[TCA_CAKE_RAW]) {
 		raw = 1;
 	}
@@ -531,6 +559,18 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	else
 		print_string(PRINT_FP, NULL, "no-split-gso ", NULL);
 	print_bool(PRINT_JSON, "split_gso", NULL, split_gso);
+
+	if (fwmark)
+		print_string(PRINT_FP, NULL, "fwmark ", NULL);
+	else
+		print_string(PRINT_FP, NULL, "nofwmark ", NULL);
+	print_bool(PRINT_JSON, "fwmark", NULL, fwmark);
+
+	if (icing)
+		print_string(PRINT_FP, NULL, "icing ", NULL);
+	else
+		print_string(PRINT_FP, NULL, "noicing ", NULL);
+	print_bool(PRINT_JSON, "icing", NULL, icing);
 
 	if (interval)
 		print_string(PRINT_FP, NULL, "rtt %s ",
