@@ -111,6 +111,7 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	int wash = -1;
 	int nat = -1;
 	int atm = -1;
+	int sce = -1;
 	int mpu = 0;
 
 	while (argc > 0) {
@@ -344,6 +345,10 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			fwmark = fwm;
+		} else if (strcmp(*argv, "sce") == 0) {
+			sce = 1;
+		} else if (strcmp(*argv, "no-sce") == 0) {
+			sce = 0;
 		} else if (strcmp(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -403,6 +408,8 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	if (ack_filter != -1)
 		addattr_l(n, 1024, TCA_CAKE_ACK_FILTER, &ack_filter,
 			  sizeof(ack_filter));
+	if (sce != -1)
+		addattr_l(n, 1024, TCA_CAKE_SCE, &sce, sizeof(sce));
 
 	tail->rta_len = (void *) NLMSG_TAIL(n) - (void *) tail;
 	return 0;
@@ -436,6 +443,7 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	int mpu = 0;
 	int atm = 0;
 	int nat = 0;
+	int sce = 0;
 
 	SPRINT_BUF(b1);
 	SPRINT_BUF(b2);
@@ -582,6 +590,12 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 	if (fwmark)
 		print_uint(PRINT_FP, NULL, "fwmark 0x%x ", fwmark);
 	print_0xhex(PRINT_JSON, "fwmark", NULL, fwmark);
+
+	if (sce)
+		print_string(PRINT_FP, NULL, "sce ", NULL);
+	else
+		print_string(PRINT_FP, NULL, "no-sce ", NULL);
+	print_bool(PRINT_JSON, "sce", NULL, sce);
 
 	return 0;
 }
