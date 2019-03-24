@@ -826,6 +826,8 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		PRINT_TSTAT_U32("  max_len ", MAX_SKBLEN);
 		PRINT_TSTAT_U32("  quantum ", FLOW_QUANTUM);
 
+		PRINT_TSTAT_U32("  sce     ", SCE_MARKED_PACKETS);
+
 #undef GET_STAT
 #undef PRINT_TSTAT
 #undef SPRINT_TSTAT
