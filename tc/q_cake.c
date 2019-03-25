@@ -821,8 +821,9 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		PRINT_TSTAT_U32("  way_inds", WAY_INDIRECT_HITS);
 		PRINT_TSTAT_U32("  way_miss", WAY_MISSES);
 		PRINT_TSTAT_U32("  way_cols", WAY_COLLISIONS);
-		PRINT_TSTAT_U32("  drops   ", DROPPED_PACKETS);
+		PRINT_TSTAT_U32("  sce     ", SCE_MARKED_PACKETS);
 		PRINT_TSTAT_U32("  marks   ", ECN_MARKED_PACKETS);
+		PRINT_TSTAT_U32("  drops   ", DROPPED_PACKETS);
 		PRINT_TSTAT_U32("  ack_drop", ACKS_DROPPED_PACKETS);
 		PRINT_TSTAT_U32("  sp_flows", SPARSE_FLOWS);
 		PRINT_TSTAT_U32("  bk_flows", BULK_FLOWS);
@@ -830,7 +831,6 @@ static int cake_print_xstats(struct qdisc_util *qu, FILE *f,
 		PRINT_TSTAT_U32("  max_len ", MAX_SKBLEN);
 		PRINT_TSTAT_U32("  quantum ", FLOW_QUANTUM);
 
-		PRINT_TSTAT_U32("  sce     ", SCE_MARKED_PACKETS);
 
 #undef GET_STAT
 #undef PRINT_TSTAT
