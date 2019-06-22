@@ -345,6 +345,15 @@ static int cake_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			fwmark = fwm;
+		} else if (strcmp(*argv, "sce-single") == 0) {
+			sce = 0xFFFF;
+		} else if (strcmp(*argv, "sce-thresh") == 0) {
+			NEXT_ARG();
+			if (get_u32(&sce, *argv, 0) || sce < 1 || sce > 1024) {
+				fprintf(stderr,
+					"Illegal value for \"sce-thresh\": \"%s\"\n", *argv);
+				return -1;
+			}
 		} else if (strcmp(*argv, "sce") == 0) {
 			sce = 1;
 		} else if (strcmp(*argv, "no-sce") == 0) {
@@ -595,11 +604,15 @@ static int cake_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 		print_uint(PRINT_FP, NULL, "fwmark 0x%x ", fwmark);
 	print_0xhex(PRINT_JSON, "fwmark", NULL, fwmark);
 
-	if (sce)
+	if (sce == 1)
 		print_string(PRINT_FP, NULL, "sce ", NULL);
-	else
+	else if(sce > 1024)
+		print_string(PRINT_FP, NULL, "sce-single ", NULL);
+	else if(!sce)
 		print_string(PRINT_FP, NULL, "no-sce ", NULL);
-	print_bool(PRINT_JSON, "sce", NULL, sce);
+	else
+		print_uint(PRINT_FP, NULL, "sce-thresh %u ", sce);
+	print_uint(PRINT_JSON, "sce", NULL, sce);
 
 	return 0;
 }
