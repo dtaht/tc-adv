@@ -623,7 +623,7 @@ static int cnq_print_xstats(struct qdisc_util *qu, FILE *f,
 #endif
 
 struct qdisc_util cnq_qdisc_util = {
-	.id		= "cnq_cobakt",
+	.id		= "cnq_cobalt",
 	.parse_qopt	= cnq_parse_opt,
 	.print_qopt	= cnq_print_opt,
 //	.print_xstats	= cnq_print_xstats,
