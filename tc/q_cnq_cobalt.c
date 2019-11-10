@@ -84,11 +84,9 @@ static int cnq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			unlimited = 0;
-			autorate = 0;
 		} else if (strcmp(*argv, "unlimited") == 0) {
 			bandwidth = 0;
 			unlimited = 1;
-			autorate = 0;
 		} else if (strcmp(*argv, "rtt") == 0) {
 			NEXT_ARG();
 			if (get_time(&interval, *argv)) {
