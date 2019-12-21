@@ -541,6 +541,25 @@ This can be used to set policies in a firewall script that will override CAKE's
 built-in tin selection.
 
 .SH OTHER PARAMETERS
+.B ingress
+
+.br
+	Indicates the qdisc is used on ingress (typically done with an IFB device).
+
+	Most notably, this counts drops as data transferred, making ingress shaping
+more accurate, since packets will have already traversed the link before Cake
+gets to choose what to do with them.
+
+	In addition, drops are also counted as data transferred for maintaining
+fairness. This leads to the possibly unexpected result that with host fairness
+enabled (see the
+.B FLOW ISOLATION PARAMETERS
+section), IPs with more simultaneous TCP flows may show lower total goodput than
+IPs with fewer flows. This is expected, and is due to proportionally more
+packets being dropped for congestion control when there are more active flows.
+Clients can avoid this possible loss in goodput by either using fewer flows, or
+enabling ECN for greater efficiency.
+
 .B memlimit
 LIMIT
 .br
